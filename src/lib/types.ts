@@ -54,8 +54,14 @@ export type PassrEvent = {
 
   /** Hero/listing image URL. */
   image: string;
-  /** Lowest known "starting at" price for the event, for list/card display. */
-  startingAt: number;
+  /**
+   * Lowest known "starting at" price for the event, for list/card display.
+   * Undefined when the source provider doesn't expose pricing (common for
+   * real event APIs like Ticketmaster, which often list events with no
+   * price data at all). Never fabricate a number here — e.g. do not
+   * default to 0 — when a provider gives no price.
+   */
+  startingAt?: number | undefined;
   /** Whether this event should surface in "trending" sections. */
   trending: boolean;
 
