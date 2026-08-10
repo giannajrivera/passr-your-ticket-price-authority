@@ -3,7 +3,10 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Bell, BellOff, Check, ChevronDown, Minus, Plus, ShieldCheck } from "lucide-react";
 import { getEvent, money, quotesFor } from "@/lib/mock-data";
 import { BottomNav } from "@/components/BottomNav";
+import { VenueMap } from "@/components/VenueMap";
+import { AffiliateNote } from "@/components/AffiliateNote";
 import { isSaved, toggleSaved, useWatchlist } from "@/lib/watchlist";
+
 
 export const Route = createFileRoute("/event/$eventId")({
   loader: ({ params }) => {
