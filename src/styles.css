@@ -18,6 +18,9 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
   --font-sans: "League Spartan", ui-sans-serif, system-ui, sans-serif;
+  --font-inter: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -48,6 +51,9 @@
   --radius: 0.875rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0 0 0);
+  /* logo purple #291c4b */
+  --brand: oklch(0.279 0.0905 293.6);
+  --brand-foreground: oklch(1 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0 0 0);
   --popover: oklch(1 0 0);

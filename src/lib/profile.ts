@@ -1,7 +1,7 @@
 export type PassrProfile = {
   name: string;
   email: string;
-  phone?: string;
+  phone?: string | undefined;
   answers: Record<string, string[]>;
   completedAt: string;
 };
