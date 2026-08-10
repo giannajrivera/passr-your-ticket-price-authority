@@ -81,14 +81,25 @@ export function VenueMap({
                 style={{ fillOpacity: isSelected ? 1 : tint(section) }}
                 strokeWidth={isSelected ? 2.5 : 0.75}
               />
-              {z.labelX !== undefined && z.labelY !== undefined && (
+              {z.label && z.labelX !== undefined && z.labelY !== undefined ? (
+                <text
+                  x={z.labelX}
+                  y={z.labelY}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="pointer-events-none fill-background"
+                  style={{ fontSize: 12, fontWeight: 700 }}
+                >
+                  {z.label}
+                </text>
+              ) : z.labelX !== undefined && z.labelY !== undefined ? (
                 <circle
                   cx={z.labelX}
                   cy={z.labelY}
                   r={isSelected ? 3 : 1.8}
                   className="pointer-events-none fill-background"
                 />
-              )}
+              ) : null}
             </g>
           );
         })}
