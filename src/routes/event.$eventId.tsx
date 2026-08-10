@@ -227,12 +227,14 @@ function EventDetail() {
         </p>
       </section>
 
-      <div className="px-6 pt-6">
+      <div className="space-y-3 px-6 pt-6">
         <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Check className="h-3.5 w-3.5 text-success" strokeWidth={3} />
           Passr only reads prices. We never mark them up.
         </p>
+        <AffiliateNote />
       </div>
+
 
       <BottomNav />
     </main>
