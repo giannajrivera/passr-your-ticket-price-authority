@@ -37,7 +37,7 @@ export function Onboarding() {
     setOpen(false);
   };
 
-  const { icon: Icon, title, body } = steps[step];
+  const { icon: Icon, title, body } = steps[step]!;
   const last = step === steps.length - 1;
 
   return (
