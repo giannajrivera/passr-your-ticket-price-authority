@@ -31,7 +31,8 @@ export const Route = createFileRoute("/event/$eventId")({
 });
 
 function EventDetail() {
-  const { event } = Route.useLoaderData();
+  const { eventId } = Route.useParams();
+  const event = getEvent(eventId)!;
   const watchlist = useWatchlist();
   const saved = isSaved(watchlist, event.id);
 
