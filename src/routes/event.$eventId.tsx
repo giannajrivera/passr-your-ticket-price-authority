@@ -3,7 +3,10 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Bell, BellOff, Check, ChevronDown, Minus, Plus, ShieldCheck } from "lucide-react";
 import { getEvent, money, quotesFor } from "@/lib/mock-data";
 import { BottomNav } from "@/components/BottomNav";
+import { VenueMap } from "@/components/VenueMap";
+import { AffiliateNote } from "@/components/AffiliateNote";
 import { isSaved, toggleSaved, useWatchlist } from "@/lib/watchlist";
+
 
 export const Route = createFileRoute("/event/$eventId")({
   loader: ({ params }) => {
@@ -83,14 +86,17 @@ function EventDetail() {
         </p>
       </section>
 
-      {/* Section picker */}
+      {/* Seat map + section picker */}
       <section className="px-6 pt-7">
         <label
           htmlFor="section"
           className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground"
         >
-          Section
+          Where you'll sit
         </label>
+        <div className="mt-3">
+          <VenueMap event={event} selectedId={sectionId} onSelect={setSectionId} />
+        </div>
         <div className="relative mt-3">
           <select
             id="section"
@@ -110,6 +116,7 @@ function EventDetail() {
           />
         </div>
       </section>
+
 
       {/* Out-the-door prices */}
       <section className="px-6 pt-8">
@@ -220,12 +227,14 @@ function EventDetail() {
         </p>
       </section>
 
-      <div className="px-6 pt-6">
+      <div className="space-y-3 px-6 pt-6">
         <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Check className="h-3.5 w-3.5 text-success" strokeWidth={3} />
           Passr only reads prices. We never mark them up.
         </p>
+        <AffiliateNote />
       </div>
+
 
       <BottomNav />
     </main>

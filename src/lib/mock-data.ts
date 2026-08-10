@@ -9,6 +9,7 @@ export type Section = {
   name: string;
   base: number; // base price per ticket
   avg30: number; // 30-day average out-the-door price
+  zone: string; // id of the matching zone on the venue map
 };
 
 export type PassrEvent = {
@@ -71,10 +72,10 @@ export const events: PassrEvent[] = [
     startingAt: 86,
     trending: true,
     sections: [
-      { id: "floor-a", name: "Floor A · Row 12", base: 296, avg30: 402 },
-      { id: "100-level", name: "Section 112 · Row 8", base: 168, avg30: 191 },
-      { id: "200-level", name: "Section 214 · Row 3", base: 118, avg30: 129 },
-      { id: "upper", name: "Section 320 · Row 15", base: 74, avg30: 71 },
+      { id: "floor-a", name: "Floor A · Row 12", base: 296, avg30: 402 , zone: "floor-a" },
+      { id: "100-level", name: "Section 112 · Row 8", base: 168, avg30: 191 , zone: "ring1-2" },
+      { id: "200-level", name: "Section 214 · Row 3", base: 118, avg30: 129 , zone: "ring2-4" },
+      { id: "upper", name: "Section 320 · Row 15", base: 74, avg30: 71 , zone: "ring3-8" },
     ],
   },
   {
@@ -89,10 +90,10 @@ export const events: PassrEvent[] = [
     startingAt: 52,
     trending: true,
     sections: [
-      { id: "midfield", name: "Midfield 108 · Row 6", base: 214, avg30: 236 },
-      { id: "corner", name: "Corner 132 · Row 11", base: 112, avg30: 104 },
-      { id: "supporters", name: "Supporters 214 · Row 4", base: 68, avg30: 79 },
-      { id: "upper-end", name: "Upper End 330 · Row 20", base: 45, avg30: 44 },
+      { id: "midfield", name: "Midfield 108 · Row 6", base: 214, avg30: 236 , zone: "lower-9" },
+      { id: "corner", name: "Corner 132 · Row 11", base: 112, avg30: 104 , zone: "lower-1" },
+      { id: "supporters", name: "Supporters 214 · Row 4", base: 68, avg30: 79 , zone: "club-4" },
+      { id: "upper-end", name: "Upper End 330 · Row 20", base: 45, avg30: 44 , zone: "upper-12" },
     ],
   },
   {
@@ -107,9 +108,9 @@ export const events: PassrEvent[] = [
     startingAt: 63,
     trending: false,
     sections: [
-      { id: "orchestra", name: "Orchestra · Row F", base: 262, avg30: 249 },
-      { id: "mezzanine", name: "Mezzanine · Row C", base: 154, avg30: 178 },
-      { id: "balcony", name: "Balcony · Row J", base: 58, avg30: 61 },
+      { id: "orchestra", name: "Orchestra · Row F", base: 262, avg30: 249 , zone: "orch-2" },
+      { id: "mezzanine", name: "Mezzanine · Row C", base: 154, avg30: 178 , zone: "mezz-1" },
+      { id: "balcony", name: "Balcony · Row J", base: 58, avg30: 61 , zone: "balc-3" },
     ],
   },
   {
@@ -124,9 +125,9 @@ export const events: PassrEvent[] = [
     startingAt: 41,
     trending: true,
     sections: [
-      { id: "ga-pit", name: "GA Pit", base: 132, avg30: 121 },
-      { id: "balcony-seats", name: "Balcony · Row D", base: 88, avg30: 96 },
-      { id: "rear-ga", name: "Rear GA", base: 40, avg30: 43 },
+      { id: "ga-pit", name: "GA Pit", base: 132, avg30: 121 , zone: "floor-a" },
+      { id: "balcony-seats", name: "Balcony · Row D", base: 88, avg30: 96 , zone: "ring2-6" },
+      { id: "rear-ga", name: "Rear GA", base: 40, avg30: 43 , zone: "floor-c" },
     ],
   },
   {
@@ -141,9 +142,9 @@ export const events: PassrEvent[] = [
     startingAt: 74,
     trending: false,
     sections: [
-      { id: "courtside", name: "Courtside · Row 2", base: 386, avg30: 351 },
-      { id: "lower-bowl", name: "Lower Bowl 104 · Row 9", base: 182, avg30: 205 },
-      { id: "upper-bowl", name: "Upper Bowl 312 · Row 14", base: 72, avg30: 77 },
+      { id: "courtside", name: "Courtside · Row 2", base: 386, avg30: 351 , zone: "lower-6" },
+      { id: "lower-bowl", name: "Lower Bowl 104 · Row 9", base: 182, avg30: 205 , zone: "lower-2" },
+      { id: "upper-bowl", name: "Upper Bowl 312 · Row 14", base: 72, avg30: 77 , zone: "upper-5" },
     ],
   },
 ];

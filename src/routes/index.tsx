@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, Sparkles, TrendingUp } from "lucide-react";
 import { events, money } from "@/lib/mock-data";
 import { BottomNav } from "@/components/BottomNav";
+import { AffiliateNote } from "@/components/AffiliateNote";
 import { Onboarding } from "@/components/Onboarding";
 import { getProfile, type PassrProfile } from "@/lib/profile";
 import logo from "@/assets/passr-logo.png.asset.json";
@@ -122,6 +123,8 @@ function Home() {
           </div>
         </section>
       )}
+
+      <AffiliateNote className="px-6 pb-2 pt-8" />
 
       <BottomNav />
     </main>
