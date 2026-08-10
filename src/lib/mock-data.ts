@@ -20,8 +20,14 @@ export type Section = {
 // (see @/lib/types) plus the mock-only section/pricing data that real event
 // APIs don't provide. Keeping these composed rather than merged is what lets
 // PassrEvent stay accurate once a real provider is connected.
+//
+// PassrEvent.startingAt is optional at the shared-type level (real providers
+// like Ticketmaster often have no price data), but every mock event always
+// has one, so it's narrowed back to required here — this keeps money(event
+// .startingAt) call sites elsewhere in the mock app unchanged.
 export type MockPassrEvent = PassrEvent & {
   sections: Section[];
+  startingAt: number;
 };
 
 // Fee rates per marketplace (15–25% of base price)
