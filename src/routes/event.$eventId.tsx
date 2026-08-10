@@ -83,14 +83,17 @@ function EventDetail() {
         </p>
       </section>
 
-      {/* Section picker */}
+      {/* Seat map + section picker */}
       <section className="px-6 pt-7">
         <label
           htmlFor="section"
           className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground"
         >
-          Section
+          Where you'll sit
         </label>
+        <div className="mt-3">
+          <VenueMap event={event} selectedId={sectionId} onSelect={setSectionId} />
+        </div>
         <div className="relative mt-3">
           <select
             id="section"
@@ -110,6 +113,7 @@ function EventDetail() {
           />
         </div>
       </section>
+
 
       {/* Out-the-door prices */}
       <section className="px-6 pt-8">
