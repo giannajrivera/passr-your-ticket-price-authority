@@ -4,10 +4,11 @@ export type Zone = {
   id: string;
   d: string;
   /** Optional short label drawn in the middle of the zone */
-  label?: string;
-  labelX?: number;
-  labelY?: number;
+  label?: string | undefined;
+  labelX?: number | undefined;
+  labelY?: number | undefined;
 };
+
 
 export type VenueLayout = {
   width: number;
