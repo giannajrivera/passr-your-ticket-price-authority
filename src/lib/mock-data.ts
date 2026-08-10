@@ -1,9 +1,13 @@
 import concertImg from "@/assets/event-concert.jpg";
 import sportsImg from "@/assets/event-sports.jpg";
 import theaterImg from "@/assets/event-theater.jpg";
+import type { PassrEvent } from "@/lib/types";
 
 export type Marketplace = "StubHub" | "SeatGeek" | "Vivid Seats" | "Ticketmaster";
 
+// Mock-only, Passr-side ticket-analysis data. Real event providers don't
+// supply this — see TicketMarketData in @/lib/types for the shape this will
+// eventually map to once a real pricing source is connected.
 export type Section = {
   id: string;
   name: string;
@@ -12,17 +16,11 @@ export type Section = {
   zone: string; // id of the matching zone on the venue map
 };
 
-export type PassrEvent = {
-  id: string;
-  name: string;
-  subtitle: string;
-  category: "Concert" | "Sports" | "Theater";
-  date: string;
-  venue: string;
-  city: string;
-  image: string;
-  startingAt: number;
-  trending: boolean;
+// The mock app's working event shape: Passr's shared core event identity
+// (see @/lib/types) plus the mock-only section/pricing data that real event
+// APIs don't provide. Keeping these composed rather than merged is what lets
+// PassrEvent stay accurate once a real provider is connected.
+export type MockPassrEvent = PassrEvent & {
   sections: Section[];
 };
 
@@ -59,9 +57,11 @@ export function quotesFor(section: Section): Quote[] {
   }).sort((a, b) => a.total - b.total);
 }
 
-export const events: PassrEvent[] = [
+export const events: MockPassrEvent[] = [
   {
     id: "nova-quinn",
+    source: "mock",
+    sourceEventId: "nova-quinn",
     name: "Nova Quinn — Afterglow Tour",
     subtitle: "with Rowan Vale",
     category: "Concert",
@@ -80,6 +80,8 @@ export const events: PassrEvent[] = [
   },
   {
     id: "harbor-city-fc",
+    source: "mock",
+    sourceEventId: "harbor-city-fc",
     name: "Harbor City FC vs. Cascade United",
     subtitle: "Regular season",
     category: "Sports",
@@ -98,6 +100,8 @@ export const events: PassrEvent[] = [
   },
   {
     id: "the-winter-room",
+    source: "mock",
+    sourceEventId: "the-winter-room",
     name: "The Winter Room",
     subtitle: "Broadway revival",
     category: "Theater",
@@ -115,6 +119,8 @@ export const events: PassrEvent[] = [
   },
   {
     id: "arlo-mane",
+    source: "mock",
+    sourceEventId: "arlo-mane",
     name: "Arlo Mane — Slow Static",
     subtitle: "Solo acoustic",
     category: "Concert",
@@ -132,6 +138,8 @@ export const events: PassrEvent[] = [
   },
   {
     id: "north-stars",
+    source: "mock",
+    sourceEventId: "north-stars",
     name: "North Stars vs. Iron District",
     subtitle: "Home opener",
     category: "Sports",
