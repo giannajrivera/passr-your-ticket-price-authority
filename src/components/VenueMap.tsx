@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { getVenueLayout } from "@/lib/venue-maps";
-import type { PassrEvent, Section } from "@/lib/mock-data";
+import type { MockPassrEvent, Section } from "@/lib/mock-data";
 import { money } from "@/lib/mock-data";
 
 export function VenueMap({
@@ -8,7 +8,7 @@ export function VenueMap({
   selectedId,
   onSelect,
 }: {
-  event: PassrEvent;
+  event: MockPassrEvent;
   selectedId: string;
   onSelect: (sectionId: string) => void;
 }) {
