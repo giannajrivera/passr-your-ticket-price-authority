@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Search, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Sparkles, TrendingUp } from "lucide-react";
 import { events, money } from "@/lib/mock-data";
 import { BottomNav } from "@/components/BottomNav";
 import { Onboarding } from "@/components/Onboarding";
+import { getProfile, type PassrProfile } from "@/lib/profile";
 import logo from "@/assets/passr-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
@@ -27,6 +28,9 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [q, setQ] = useState("");
+  const [profile, setProfile] = useState<PassrProfile | null>(null);
+
+  useEffect(() => setProfile(getProfile()), []);
 
   const results = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -36,20 +40,26 @@ function Home() {
     );
   }, [q]);
 
+  const picks = useMemo(() => {
+    const liked = profile?.answers["categories"] ?? [];
+    if (!liked.length) return [];
+    return events.filter((e) => liked.some((c) => c.toLowerCase().startsWith(e.category.toLowerCase())));
+  }, [profile]);
+
   const trending = results.filter((e) => e.trending);
   const rest = results.filter((e) => !e.trending);
 
   return (
     <main className="mx-auto min-h-screen max-w-md bg-background pb-24">
-      <Onboarding />
+      <Onboarding onDone={() => setProfile(getProfile())} />
 
-      <header className="bg-foreground px-6 pt-8 pb-10 text-background">
+      <header className="bg-brand px-6 pt-8 pb-10 text-background">
         <div className="flex items-center gap-3">
           <img src={logo.url} alt="" aria-hidden className="h-9 w-9 object-contain" />
           <span className="text-2xl font-bold lowercase tracking-tight">passr</span>
         </div>
-        <h1 className="mt-6 text-3xl leading-tight font-bold lowercase tracking-tight">
-          what are you trying to see?
+        <h1 className="mt-6 font-inter text-3xl leading-tight font-bold lowercase tracking-tight">
+          {profile?.name ? `hey ${profile.name.toLowerCase()}, ` : ""}what are you trying to see?
         </h1>
         <div className="mt-5 flex items-center gap-3 rounded-full bg-background px-5 py-3.5">
           <Search className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2.2} />
@@ -62,6 +72,23 @@ function Home() {
           />
         </div>
       </header>
+
+      {!q && picks.length > 0 && (
+        <section className="px-6 pt-8">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" strokeWidth={2.4} />
+            <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              Picked for you
+            </h2>
+          </div>
+          <div className="mt-4 space-y-3">
+            {picks.map((e) => (
+              <EventCard key={e.id} event={e} />
+            ))}
+          </div>
+        </section>
+      )}
+
 
       <section className="px-6 pt-8">
         <div className="flex items-center gap-2">
