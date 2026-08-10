@@ -79,21 +79,22 @@ const H = 300;
 
 function arenaLayout(): VenueLayout {
   const cx = 160;
-  const cy = 165;
+  const cy = 150;
   return {
     width: W,
     height: H,
-    stage: { d: "M 100 22 h 120 v 34 h -120 Z", label: "STAGE", x: 160, y: 43 },
+    stage: { d: "M 105 14 h 110 v 32 h -110 Z", label: "STAGE", x: 160, y: 31 },
     zones: [
-      rect("floor-a", 108, 66, 104, 30, "A"),
-      rect("floor-b", 108, 100, 104, 30, "B"),
-      rect("floor-c", 108, 134, 104, 30, "C"),
-      ...ring("ring1", cx, cy, 78, 100, -160, 160, 10),
-      ...ring("ring2", cx, cy, 104, 124, -158, 158, 12),
-      ...ring("ring3", cx, cy, 128, 150, -156, 156, 12),
+      rect("floor-a", 118, 88, 84, 38, "A"),
+      rect("floor-b", 118, 130, 84, 38, "B"),
+      rect("floor-c", 118, 172, 84, 38, "C"),
+      ...ring("ring1", cx, cy, 82, 100, -40, 220, 8),
+      ...ring("ring2", cx, cy, 104, 120, -40, 220, 10),
+      ...ring("ring3", cx, cy, 124, 142, -40, 220, 10),
     ],
   };
 }
+
 
 function stadiumLayout(): VenueLayout {
   const cx = 160;
