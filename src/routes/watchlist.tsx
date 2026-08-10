@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { getEvent, money } from "@/lib/mock-data";
 import { BottomNav } from "@/components/BottomNav";
+import { AffiliateNote } from "@/components/AffiliateNote";
 import { toggleNotify, useWatchlist } from "@/lib/watchlist";
 
 export const Route = createFileRoute("/watchlist")({
@@ -96,6 +97,8 @@ function Watchlist() {
           );
         })}
       </div>
+
+      <AffiliateNote className="px-6 pb-2 pt-8" />
 
       <BottomNav />
     </main>
