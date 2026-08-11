@@ -1,14 +1,20 @@
-// Simple procedural venue maps (Ticketmaster-style bowl views) rendered as SVG.
+// Venue maps modeled on the actual venues in the mock event data.
+// Each venue has its own hand-tuned layout (Ticketmaster-style bowl view),
+// and every zone carries a real section name plus a "tier" (0 = cheapest
+// seat in the house, 1 = the most premium) that drives dynamic pricing.
 
 export type Zone = {
   id: string;
   d: string;
+  /** Real section name, e.g. "Section 112" or "Floor A" */
+  name: string;
   /** Optional short label drawn in the middle of the zone */
   label?: string | undefined;
   labelX?: number | undefined;
   labelY?: number | undefined;
+  /** 0 = cheapest area, 1 = most premium */
+  tier: number;
 };
-
 
 export type VenueLayout = {
   width: number;
@@ -41,6 +47,17 @@ function segment(cx: number, cy: number, r1: number, r2: number, a1: number, a2:
   ].join(" ");
 }
 
+type RingOpts = {
+  /** First section number in this ring, e.g. 101 */
+  startNumber: number;
+  /** tier for each zone, given index + count */
+  tier: (i: number, count: number) => number;
+  gap?: number;
+  /** Draw the section number inside the zone */
+  showLabel?: boolean;
+  namePrefix?: string;
+};
+
 function ring(
   prefix: string,
   cx: number,
@@ -50,8 +67,9 @@ function ring(
   from: number,
   to: number,
   count: number,
-  gap = 2,
+  opts: RingOpts,
 ): Zone[] {
+  const gap = opts.gap ?? 2;
   const span = (to - from) / count;
   const zones: Zone[] = [];
   for (let i = 0; i < count; i++) {
@@ -59,25 +77,83 @@ function ring(
     const a2 = from + (i + 1) * span - gap / 2;
     const mid = (a1 + a2) / 2;
     const [lx, ly] = pt(cx, cy, (r1 + r2) / 2, mid);
-    zones.push({ id: `${prefix}-${i}`, d: segment(cx, cy, r1, r2, a1, a2), labelX: lx, labelY: ly });
+    const num = opts.startNumber + i;
+    zones.push({
+      id: `${prefix}-${num}`,
+      d: segment(cx, cy, r1, r2, a1, a2),
+      name: `${opts.namePrefix ?? "Section"} ${num}`,
+      label: opts.showLabel ? String(num) : undefined,
+      labelX: lx,
+      labelY: ly,
+      tier: opts.tier(i, count),
+    });
   }
   return zones;
 }
 
-function rect(id: string, x: number, y: number, w: number, h: number, label?: string): Zone {
+function rect(
+  id: string,
+  name: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  tier: number,
+  label?: string,
+): Zone {
   return {
     id,
     d: `M ${x} ${y} h ${w} v ${h} h ${-w} Z`,
+    name,
     label,
     labelX: x + w / 2,
     labelY: y + h / 2,
+    tier,
   };
+}
+
+/** A straight run of `count` rect sections, laid out horizontally or vertically. */
+function rectRow(
+  prefix: string,
+  startNumber: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  count: number,
+  vertical: boolean,
+  tier: (i: number, count: number) => number,
+  gap = 2,
+): Zone[] {
+  const zones: Zone[] = [];
+  const each = ((vertical ? h : w) - gap * (count - 1)) / count;
+  for (let i = 0; i < count; i++) {
+    const zx = vertical ? x : x + i * (each + gap);
+    const zy = vertical ? y + i * (each + gap) : y;
+    const zw = vertical ? w : each;
+    const zh = vertical ? each : h;
+    const num = startNumber + i;
+    zones.push(
+      rect(`${prefix}-${num}`, `Section ${num}`, zx, zy, zw, zh, tier(i, count), String(num)),
+    );
+  }
+  return zones;
 }
 
 const W = 320;
 const H = 300;
 
-function arenaLayout(): VenueLayout {
+/** Higher in the middle of the run, lower toward the ends. */
+const centered = (peak: number, edge: number) => (i: number, count: number) => {
+  if (count <= 1) return peak;
+  const d = Math.abs(i - (count - 1) / 2) / ((count - 1) / 2);
+  return edge + (peak - edge) * (1 - d);
+};
+
+/* ---------------------------------------------------------------- venues */
+
+/** Madison Square Garden — end-stage concert configuration. */
+function madisonSquareGarden(): VenueLayout {
   const cx = 160;
   const cy = 150;
   return {
@@ -85,38 +161,88 @@ function arenaLayout(): VenueLayout {
     height: H,
     stage: { d: "M 105 14 h 110 v 32 h -110 Z", label: "STAGE", x: 160, y: 31 },
     zones: [
-      rect("floor-a", 118, 88, 84, 38, "A"),
-      rect("floor-b", 118, 130, 84, 38, "B"),
-      rect("floor-c", 118, 172, 84, 38, "C"),
-      ...ring("ring1", cx, cy, 82, 100, -40, 220, 8),
-      ...ring("ring2", cx, cy, 104, 120, -40, 220, 10),
-      ...ring("ring3", cx, cy, 124, 142, -40, 220, 10),
+      rect("floor-a", "Floor A", 118, 88, 84, 38, 1, "A"),
+      rect("floor-b", "Floor B", 118, 130, 84, 38, 0.9, "B"),
+      rect("floor-c", "Floor C", 118, 172, 84, 38, 0.78, "C"),
+      ...ring("msg", cx, cy, 82, 100, -40, 220, 8, {
+        startNumber: 101,
+        tier: centered(0.68, 0.5),
+      }),
+      ...ring("msg", cx, cy, 104, 120, -40, 220, 10, {
+        startNumber: 201,
+        tier: centered(0.44, 0.3),
+      }),
+      ...ring("msg", cx, cy, 124, 142, -40, 220, 10, {
+        startNumber: 401,
+        tier: centered(0.2, 0.06),
+      }),
     ],
   };
 }
 
-
-function stadiumLayout(): VenueLayout {
+/** Granite Arena — center-court/ice bowl. */
+function graniteArena(): VenueLayout {
   const cx = 160;
   const cy = 150;
   return {
     width: W,
     height: H,
     stage: {
-      d: "M 108 116 h 104 a 8 8 0 0 1 8 8 v 52 a 8 8 0 0 1 -8 8 h -104 a 8 8 0 0 1 -8 -8 v -52 a 8 8 0 0 1 8 -8 Z",
-      label: "FIELD",
+      d: "M 112 122 h 96 a 6 6 0 0 1 6 6 v 44 a 6 6 0 0 1 -6 6 h -96 a 6 6 0 0 1 -6 -6 v -44 a 6 6 0 0 1 6 -6 Z",
+      label: "COURT",
       x: 160,
-      y: 153,
+      y: 150,
     },
     zones: [
-      ...ring("lower", cx, cy, 74, 96, 0, 360, 12),
-      ...ring("club", cx, cy, 100, 118, 0, 360, 14),
-      ...ring("upper", cx, cy, 122, 144, 0, 360, 16),
+      ...ring("court", cx, cy, 60, 74, 0, 360, 8, {
+        startNumber: 1,
+        tier: () => 1,
+        namePrefix: "Courtside",
+      }),
+      ...ring("gra", cx, cy, 78, 100, 0, 360, 12, {
+        startNumber: 101,
+        tier: (i) => (i % 6 < 2 ? 0.72 : 0.58),
+      }),
+      ...ring("gra", cx, cy, 104, 124, 0, 360, 14, {
+        startNumber: 201,
+        tier: (i) => (i % 7 < 2 ? 0.46 : 0.36),
+      }),
+      ...ring("gra", cx, cy, 128, 146, 0, 360, 16, {
+        startNumber: 301,
+        tier: (i) => (i % 8 < 2 ? 0.2 : 0.1),
+      }),
     ],
   };
 }
 
-function theaterLayout(): VenueLayout {
+/** Anchor Field — rectangular soccer stadium. */
+function anchorField(): VenueLayout {
+  return {
+    width: W,
+    height: H,
+    stage: {
+      d: "M 96 112 h 128 v 76 h -128 Z",
+      label: "PITCH",
+      x: 160,
+      y: 150,
+    },
+    zones: [
+      // Lower bowl — sidelines and ends around the pitch
+      ...rectRow("af", 101, 96, 88, 128, 20, 5, false, centered(1, 0.7)),
+      ...rectRow("af", 121, 96, 192, 128, 20, 5, false, centered(0.86, 0.6)),
+      ...rectRow("af", 111, 66, 88, 24, 124, 4, true, centered(0.66, 0.48)),
+      ...rectRow("af", 131, 230, 88, 24, 124, 4, true, centered(0.66, 0.48)),
+      // Upper deck
+      ...rectRow("af", 201, 66, 58, 188, 24, 6, false, centered(0.42, 0.28)),
+      ...rectRow("af", 221, 66, 218, 188, 24, 6, false, centered(0.3, 0.14)),
+      rect("af-supporters", "Supporters 301", 34, 88, 26, 124, 0.22, "301"),
+      rect("af-302", "Section 302", 260, 88, 26, 124, 0.08, "302"),
+    ],
+  };
+}
+
+/** Belmore Theatre — proscenium Broadway house. */
+function belmoreTheatre(): VenueLayout {
   const cx = 160;
   const cy = 44;
   return {
@@ -124,15 +250,60 @@ function theaterLayout(): VenueLayout {
     height: H,
     stage: { d: "M 96 18 h 128 v 30 h -128 Z", label: "STAGE", x: 160, y: 35 },
     zones: [
-      ...ring("orch", cx, cy, 58, 104, 28, 152, 5),
-      ...ring("mezz", cx, cy, 112, 156, 24, 156, 5),
-      ...ring("balc", cx, cy, 164, 206, 22, 158, 5),
+      ...ring("orch", cx, cy, 58, 104, 28, 152, 5, {
+        startNumber: 1,
+        tier: centered(1, 0.74),
+        namePrefix: "Orchestra",
+      }),
+      ...ring("mezz", cx, cy, 112, 156, 24, 156, 5, {
+        startNumber: 1,
+        tier: centered(0.6, 0.42),
+        namePrefix: "Mezzanine",
+      }),
+      ...ring("balc", cx, cy, 164, 206, 22, 158, 5, {
+        startNumber: 1,
+        tier: centered(0.24, 0.06),
+        namePrefix: "Balcony",
+      }),
     ],
   };
 }
 
-export function getVenueLayout(category: "Concert" | "Sports" | "Theater"): VenueLayout {
-  if (category === "Sports") return stadiumLayout();
-  if (category === "Theater") return theaterLayout();
-  return arenaLayout();
+/** The Fillmore — small general-admission hall with a horseshoe balcony. */
+function theFillmore(): VenueLayout {
+  return {
+    width: W,
+    height: H,
+    stage: { d: "M 84 18 h 152 v 30 h -152 Z", label: "STAGE", x: 160, y: 33 },
+    zones: [
+      rect("fill-pit", "GA Pit", 92, 60, 136, 44, 1, "PIT"),
+      rect("fill-floor-l", "Floor Left", 60, 112, 60, 62, 0.72),
+      rect("fill-floor-c", "Floor Center", 126, 112, 68, 62, 0.82, "GA"),
+      rect("fill-floor-r", "Floor Right", 200, 112, 60, 62, 0.72),
+      rect("fill-rear", "Rear GA", 60, 182, 200, 34, 0.4, "REAR GA"),
+      rect("fill-bar", "Bar Level", 60, 224, 96, 30, 0.3, "BAR"),
+      rect("fill-balc-l", "Balcony Left", 162, 224, 46, 30, 0.5),
+      rect("fill-balc-r", "Balcony Right", 214, 224, 46, 30, 0.5),
+    ],
+  };
+}
+
+const BY_VENUE: Record<string, () => VenueLayout> = {
+  "madison square garden": madisonSquareGarden,
+  "granite arena": graniteArena,
+  "anchor field": anchorField,
+  "belmore theatre": belmoreTheatre,
+  "the fillmore": theFillmore,
+};
+
+/** Layout for a specific venue, falling back to a category-shaped generic bowl. */
+export function getVenueLayout(
+  venue: string,
+  category: "Concert" | "Sports" | "Theater",
+): VenueLayout {
+  const exact = BY_VENUE[venue.trim().toLowerCase()];
+  if (exact) return exact();
+  if (category === "Sports") return graniteArena();
+  if (category === "Theater") return belmoreTheatre();
+  return madisonSquareGarden();
 }
