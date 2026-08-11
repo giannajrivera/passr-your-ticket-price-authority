@@ -86,8 +86,8 @@ export function VenueMap({
               />
               {z.label && z.labelX !== undefined && z.labelY !== undefined ? (
                 <text
-                  x={z.labelX}
-                  y={z.labelY}
+                  x={Math.round(z.labelX * 10) / 10}
+                  y={Math.round(z.labelY * 10) / 10}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="pointer-events-none fill-background"
@@ -97,8 +97,8 @@ export function VenueMap({
                 </text>
               ) : z.labelX !== undefined && z.labelY !== undefined ? (
                 <circle
-                  cx={z.labelX}
-                  cy={z.labelY}
+                  cx={Math.round(z.labelX * 10) / 10}
+                  cy={Math.round(z.labelY * 10) / 10}
                   r={isSelected ? 3 : 1.8}
                   className="pointer-events-none fill-background"
                 />
