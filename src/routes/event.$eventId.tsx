@@ -159,7 +159,9 @@ function EventDetail() {
                         strokeWidth={2.2}
                       />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold">Row {l.row}</span>
+                        <span className="block truncate text-sm font-bold">
+                          {zone.zone.standing ? "General admission" : `Row ${l.row}`}
+                        </span>
                         <span className="block text-xs text-muted-foreground">
                           {l.qty} {l.qty === 1 ? "ticket" : "tickets"} together
                         </span>

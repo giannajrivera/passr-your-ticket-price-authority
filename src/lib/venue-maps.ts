@@ -14,6 +14,8 @@ export type Zone = {
   labelY?: number | undefined;
   /** 0 = cheapest area, 1 = most premium */
   tier: number;
+  /** Standing-room / general admission area (no seat rows) */
+  standing?: boolean;
 };
 
 export type VenueLayout = {
@@ -278,12 +280,12 @@ function theFillmore(): VenueLayout {
     height: H,
     stage: { d: "M 84 18 h 152 v 30 h -152 Z", label: "STAGE", x: 160, y: 33 },
     zones: [
-      rect("fill-pit", "GA Pit", 92, 60, 136, 44, 1, "PIT"),
-      rect("fill-floor-l", "Floor Left", 60, 112, 60, 62, 0.72),
-      rect("fill-floor-c", "Floor Center", 126, 112, 68, 62, 0.82, "GA"),
-      rect("fill-floor-r", "Floor Right", 200, 112, 60, 62, 0.72),
-      rect("fill-rear", "Rear GA", 60, 182, 200, 34, 0.4, "REAR GA"),
-      rect("fill-bar", "Bar Level", 60, 224, 96, 30, 0.3, "BAR"),
+      { ...rect("fill-pit", "GA Pit", 92, 60, 136, 44, 1, "PIT"), standing: true },
+      { ...rect("fill-floor-l", "Floor Left", 60, 112, 60, 62, 0.72), standing: true },
+      { ...rect("fill-floor-c", "Floor Center", 126, 112, 68, 62, 0.82, "GA"), standing: true },
+      { ...rect("fill-floor-r", "Floor Right", 200, 112, 60, 62, 0.72), standing: true },
+      { ...rect("fill-rear", "Rear GA", 60, 182, 200, 34, 0.4, "REAR GA"), standing: true },
+      { ...rect("fill-bar", "Bar Level", 60, 224, 96, 30, 0.3, "BAR"), standing: true },
       rect("fill-balc-l", "Balcony Left", 162, 224, 46, 30, 0.5),
       rect("fill-balc-r", "Balcony Right", 214, 224, 46, 30, 0.5),
     ],
