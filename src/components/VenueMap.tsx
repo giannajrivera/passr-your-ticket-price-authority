@@ -1,34 +1,35 @@
 import { useMemo } from "react";
 import { getVenueLayout } from "@/lib/venue-maps";
-import type { MockPassrEvent, Section } from "@/lib/mock-data";
+import type { ZoneInventory } from "@/lib/venue-listings";
+import type { MockPassrEvent } from "@/lib/mock-data";
 import { money } from "@/lib/mock-data";
 
 export function VenueMap({
   event,
+  inventory,
   selectedId,
   onSelect,
 }: {
   event: MockPassrEvent;
+  inventory: Map<string, ZoneInventory>;
   selectedId: string;
-  onSelect: (sectionId: string) => void;
+  onSelect: (zoneId: string) => void;
 }) {
-  const layout = useMemo(() => getVenueLayout(event.category), [event.category]);
+  const layout = useMemo(
+    () => getVenueLayout(event.venue, event.category),
+    [event.venue, event.category],
+  );
 
-  const byZone = useMemo(() => {
-    const map = new Map<string, Section>();
-    for (const s of event.sections) map.set(s.zone, s);
-    return map;
-  }, [event.sections]);
+  const { min, max } = useMemo(() => {
+    const prices = [...inventory.values()].filter((i) => !i.soldOut).map((i) => i.from);
+    return { min: Math.min(...prices), max: Math.max(...prices) };
+  }, [inventory]);
 
-  const selected = event.sections.find((s) => s.id === selectedId);
+  const selected = inventory.get(selectedId);
 
-  const prices = event.sections.map((s) => s.base);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-
-  const tint = (s: Section) => {
+  const tint = (from: number) => {
     if (max === min) return 0.45;
-    return 0.22 + ((s.base - min) / (max - min)) * 0.55;
+    return 0.22 + ((from - min) / (max - min)) * 0.6;
   };
 
   return (
@@ -53,9 +54,10 @@ export function VenueMap({
         </text>
 
         {layout.zones.map((z) => {
-          const section = byZone.get(z.id);
-          const isSelected = !!section && section.id === selectedId;
-          if (!section) {
+          const inv = inventory.get(z.id);
+          const isSelected = z.id === selectedId;
+
+          if (!inv || inv.soldOut) {
             return (
               <path
                 key={z.id}
@@ -66,36 +68,37 @@ export function VenueMap({
               />
             );
           }
+
           return (
             <g key={z.id}>
               <path
                 d={z.d}
-                onClick={() => onSelect(section.id)}
+                onClick={() => onSelect(z.id)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") onSelect(section.id);
+                  if (e.key === "Enter" || e.key === " ") onSelect(z.id);
                 }}
-                aria-label={`${section.name}, from ${money(section.base)}`}
+                aria-label={`${z.name}, ${inv.seats} tickets from ${money(inv.from)}`}
                 className="cursor-pointer fill-primary stroke-primary transition-opacity"
-                style={{ fillOpacity: isSelected ? 1 : tint(section) }}
+                style={{ fillOpacity: isSelected ? 1 : tint(inv.from) }}
                 strokeWidth={isSelected ? 2.5 : 0.75}
               />
               {z.label && z.labelX !== undefined && z.labelY !== undefined ? (
                 <text
-                  x={z.labelX}
-                  y={z.labelY}
+                  x={Math.round(z.labelX * 10) / 10}
+                  y={Math.round(z.labelY * 10) / 10}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="pointer-events-none fill-background"
-                  style={{ fontSize: 12, fontWeight: 700 }}
+                  style={{ fontSize: z.label.length > 4 ? 8 : 10, fontWeight: 700 }}
                 >
                   {z.label}
                 </text>
               ) : z.labelX !== undefined && z.labelY !== undefined ? (
                 <circle
-                  cx={z.labelX}
-                  cy={z.labelY}
+                  cx={Math.round(z.labelX * 10) / 10}
+                  cy={Math.round(z.labelY * 10) / 10}
                   r={isSelected ? 3 : 1.8}
                   className="pointer-events-none fill-background"
                 />
@@ -107,9 +110,11 @@ export function VenueMap({
 
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{selected?.name ?? "Pick a section"}</p>
+          <p className="truncate text-sm font-bold">{selected?.zone.name ?? "Pick a section"}</p>
           <p className="text-xs text-muted-foreground">
-            Tap a highlighted section to price it out.
+            {selected && !selected.soldOut
+              ? `${selected.seats} tickets from ${money(selected.from)}`
+              : "Tap a highlighted section to see what's available."}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -123,6 +128,9 @@ export function VenueMap({
           </span>
         </div>
       </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Grey sections have no tickets left right now.
+      </p>
     </div>
   );
 }

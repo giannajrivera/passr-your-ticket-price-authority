@@ -55,13 +55,15 @@ export type Quote = {
   total: number;
 };
 
-export function quotesFor(section: Section): Quote[] {
+export function quotesFor(section: Section | number): Quote[] {
+  const basePrice = typeof section === "number" ? section : section.base;
   return MARKETPLACES.map((m) => {
-    const base = Math.round(section.base * BASE_SPREAD[m]);
+    const base = Math.round(basePrice * BASE_SPREAD[m]);
     const fees = Math.round(base * FEE_RATES[m]);
     return { marketplace: m, base, fees, total: base + fees };
   }).sort((a, b) => a.total - b.total);
 }
+
 
 export const events: MockPassrEvent[] = [
   {

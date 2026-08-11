@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as EventEventIdRouteImport } from './routes/event.$eventId'
+import { Route as ApiEventsTicketmasterRouteImport } from './routes/api.events.ticketmaster'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,49 @@ const EventEventIdRoute = EventEventIdRouteImport.update({
   path: '/event/$eventId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEventsTicketmasterRoute = ApiEventsTicketmasterRouteImport.update({
+  id: '/api/events/ticketmaster',
+  path: '/api/events/ticketmaster',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
+  '/api/events/ticketmaster': typeof ApiEventsTicketmasterRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
+  '/api/events/ticketmaster': typeof ApiEventsTicketmasterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
+  '/api/events/ticketmaster': typeof ApiEventsTicketmasterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/watchlist' | '/event/$eventId'
+  fullPaths: '/' | '/watchlist' | '/event/$eventId' | '/api/events/ticketmaster'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/watchlist' | '/event/$eventId'
-  id: '__root__' | '/' | '/watchlist' | '/event/$eventId'
+  to: '/' | '/watchlist' | '/event/$eventId' | '/api/events/ticketmaster'
+  id:
+    | '__root__'
+    | '/'
+    | '/watchlist'
+    | '/event/$eventId'
+    | '/api/events/ticketmaster'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   WatchlistRoute: typeof WatchlistRoute
   EventEventIdRoute: typeof EventEventIdRoute
+  ApiEventsTicketmasterRoute: typeof ApiEventsTicketmasterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +97,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventEventIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/events/ticketmaster': {
+      id: '/api/events/ticketmaster'
+      path: '/api/events/ticketmaster'
+      fullPath: '/api/events/ticketmaster'
+      preLoaderRoute: typeof ApiEventsTicketmasterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +111,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   WatchlistRoute: WatchlistRoute,
   EventEventIdRoute: EventEventIdRoute,
+  ApiEventsTicketmasterRoute: ApiEventsTicketmasterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

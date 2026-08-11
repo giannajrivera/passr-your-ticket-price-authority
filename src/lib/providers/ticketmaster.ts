@@ -183,9 +183,9 @@ function num(v: unknown): number | undefined {
 /** Ticketmaster omits `_embedded` entirely when a search has zero results. */
 function extractRawEvents(payload: unknown): unknown[] | undefined {
   if (!isRecord(payload)) return undefined;
-  if (payload._embedded === undefined) return []; // empty results, not malformed
-  if (!isRecord(payload._embedded)) return undefined;
-  const events = payload._embedded.events;
+  if (payload["_embedded"] === undefined) return []; // empty results, not malformed
+  if (!isRecord(payload["_embedded"])) return undefined;
+  const events = payload["_embedded"]["events"];
   if (events === undefined) return [];
   return Array.isArray(events) ? events : undefined;
 }
@@ -193,16 +193,16 @@ function extractRawEvents(payload: unknown): unknown[] | undefined {
 function pickPrimaryClassification(
   classifications: Record<string, unknown>[],
 ): Record<string, unknown> | undefined {
-  return classifications.find((c) => c.primary === true) ?? classifications[0];
+  return classifications.find((c) => c["primary"] === true) ?? classifications[0];
 }
 
 function pickBestImage(images: unknown[]): string | undefined {
   let best: { url: string; width: number } | undefined;
   for (const img of images) {
     if (!isRecord(img)) continue;
-    const url = str(img.url);
+    const url = str(img["url"]);
     if (!url) continue;
-    const width = num(img.width) ?? 0;
+    const width = num(img["width"]) ?? 0;
     if (!best || width > best.width) best = { url, width };
   }
   return best?.url;
@@ -213,7 +213,7 @@ function pickStartingPrice(priceRanges: unknown[]): number | undefined {
   let lowest: number | undefined;
   for (const range of priceRanges) {
     if (!isRecord(range)) continue;
-    const min = num(range.min);
+    const min = num(range["min"]);
     if (min === undefined) continue;
     if (lowest === undefined || min < lowest) lowest = min;
   }
@@ -234,14 +234,14 @@ function formatDisplayDate(localDate: string | undefined, localTime: string | un
 function normalizeEvent(raw: unknown): PassrEvent | undefined {
   if (!isRecord(raw)) return undefined;
 
-  const id = str(raw.id);
-  const name = str(raw.name);
+  const id = str(raw["id"]);
+  const name = str(raw["name"]);
   if (!id || !name) return undefined; // not enough to build a usable event
 
-  const classificationsRaw = Array.isArray(raw.classifications) ? raw.classifications : [];
+  const classificationsRaw = Array.isArray(raw["classifications"]) ? raw["classifications"] : [];
   const classifications = classificationsRaw.filter(isRecord);
   const classification = pickPrimaryClassification(classifications);
-  const segmentName = classification && isRecord(classification.segment) ? str(classification.segment.name) : undefined;
+  const segmentName = classification && isRecord(classification["segment"]) ? str(classification["segment"]["name"]) : undefined;
 
   const category = mapCategory(segmentName);
   // Ticketmaster's classification doesn't map confidently onto one of
@@ -249,46 +249,46 @@ function normalizeEvent(raw: unknown): PassrEvent | undefined {
   // event rather than mislabel it.
   if (!category) return undefined;
 
-  const genre = classification && isRecord(classification.genre) ? str(classification.genre.name) : undefined;
-  const subGenre = classification && isRecord(classification.subGenre) ? str(classification.subGenre.name) : undefined;
+  const genre = classification && isRecord(classification["genre"]) ? str(classification["genre"]["name"]) : undefined;
+  const subGenre = classification && isRecord(classification["subGenre"]) ? str(classification["subGenre"]["name"]) : undefined;
 
-  const embedded = isRecord(raw._embedded) ? raw._embedded : undefined;
-  const venues = embedded && Array.isArray(embedded.venues) ? embedded.venues.filter(isRecord) : [];
+  const embedded = isRecord(raw["_embedded"]) ? raw["_embedded"] : undefined;
+  const venues = embedded && Array.isArray(embedded["venues"]) ? embedded["venues"].filter(isRecord) : [];
   const venue = venues[0];
-  const attractions = embedded && Array.isArray(embedded.attractions) ? embedded.attractions.filter(isRecord) : [];
+  const attractions = embedded && Array.isArray(embedded["attractions"]) ? embedded["attractions"].filter(isRecord) : [];
   const attraction = attractions[0];
 
-  const venueName = venue ? str(venue.name) : undefined;
-  const venueCity = venue && isRecord(venue.city) ? str(venue.city.name) : undefined;
-  const venueState = venue && isRecord(venue.state) ? (str(venue.state.stateCode) ?? str(venue.state.name)) : undefined;
+  const venueName = venue ? str(venue["name"]) : undefined;
+  const venueCity = venue && isRecord(venue["city"]) ? str(venue["city"]["name"]) : undefined;
+  const venueState = venue && isRecord(venue["state"]) ? (str(venue["state"]["stateCode"]) ?? str(venue["state"]["name"])) : undefined;
   const venueCountry =
-    venue && isRecord(venue.country) ? (str(venue.country.countryCode) ?? str(venue.country.name)) : undefined;
-  const location = venue && isRecord(venue.location) ? venue.location : undefined;
-  const latitude = location ? num(location.latitude) : undefined;
-  const longitude = location ? num(location.longitude) : undefined;
+    venue && isRecord(venue["country"]) ? (str(venue["country"]["countryCode"]) ?? str(venue["country"]["name"])) : undefined;
+  const location = venue && isRecord(venue["location"]) ? venue["location"] : undefined;
+  const latitude = location ? num(location["latitude"]) : undefined;
+  const longitude = location ? num(location["longitude"]) : undefined;
 
-  const dates = isRecord(raw.dates) ? raw.dates : undefined;
-  const start = dates && isRecord(dates.start) ? dates.start : undefined;
-  const startDateTime = start ? str(start.dateTime) : undefined;
-  const localDate = start ? str(start.localDate) : undefined;
-  const localTime = start ? str(start.localTime) : undefined;
+  const dates = isRecord(raw["dates"]) ? raw["dates"] : undefined;
+  const start = dates && isRecord(dates["start"]) ? dates["start"] : undefined;
+  const startDateTime = start ? str(start["dateTime"]) : undefined;
+  const localDate = start ? str(start["localDate"]) : undefined;
+  const localTime = start ? str(start["localTime"]) : undefined;
   const date = formatDisplayDate(localDate, localTime) ?? localDate ?? "Date to be announced";
 
-  const images = Array.isArray(raw.images) ? raw.images : [];
+  const images = Array.isArray(raw["images"]) ? raw["images"] : [];
   const image = pickBestImage(images) ?? "";
 
-  const priceRanges = Array.isArray(raw.priceRanges) ? raw.priceRanges : [];
+  const priceRanges = Array.isArray(raw["priceRanges"]) ? raw["priceRanges"] : [];
   const startingAt = pickStartingPrice(priceRanges);
 
-  const description = str(raw.info) ?? str(raw.pleaseNote);
-  const ticketUrl = str(raw.url);
+  const description = str(raw["info"]) ?? str(raw["pleaseNote"]);
+  const ticketUrl = str(raw["url"]);
 
   const event: PassrEvent = {
     id: `ticketmaster-${id}`,
     source: "ticketmaster",
     sourceEventId: id,
     name,
-    subtitle: attraction ? str(attraction.name) : undefined,
+    subtitle: attraction ? str(attraction["name"]) : undefined,
     description,
     category,
     genre,

@@ -1,7 +1,9 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Bell, BellOff, Check, ChevronDown, Minus, Plus, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, Check, Minus, Plus, ShieldCheck, Ticket } from "lucide-react";
 import { getEvent, money, quotesFor } from "@/lib/mock-data";
+import { getVenueLayout } from "@/lib/venue-maps";
+import { venueInventory } from "@/lib/venue-listings";
 import { BottomNav } from "@/components/BottomNav";
 import { VenueMap } from "@/components/VenueMap";
 import { AffiliateNote } from "@/components/AffiliateNote";
@@ -39,14 +41,44 @@ function EventDetail() {
   const watchlist = useWatchlist();
   const saved = isSaved(watchlist, event.id);
 
-  const [sectionId, setSectionId] = useState(event.sections[1]?.id ?? event.sections[0]!.id);
+  const layout = useMemo(
+    () => getVenueLayout(event.venue, event.category),
+    [event.venue, event.category],
+  );
+  const inventory = useMemo(
+    () => venueInventory(event.id, event.startingAt, layout.zones, event.category !== "Theater"),
+    [event.id, event.startingAt, layout.zones, event.category],
+  );
+
+  const available = useMemo(
+    () => [...inventory.values()].filter((i) => !i.soldOut).sort((a, b) => a.from - b.from),
+    [inventory],
+  );
+
+  const [zoneId, setZoneId] = useState(
+    () =>
+      [...inventory.values()]
+        .filter((i) => !i.soldOut)
+        .sort((a, b) => b.zone.tier - a.zone.tier)[2]?.zone.id ??
+      available[0]?.zone.id ??
+      layout.zones[0]!.id,
+  );
+
+  const zone = inventory.get(zoneId) ?? available[0]!;
+  const [listingId, setListingId] = useState<string | null>(null);
+  const listing = zone.listings.find((l) => l.id === listingId) ?? zone.listings[0]!;
+
   const [people, setPeople] = useState(2);
 
-  const section = event.sections.find((s) => s.id === sectionId) ?? event.sections[0]!;
-  const quotes = useMemo(() => quotesFor(section), [section]);
+  const quotes = useMemo(() => quotesFor(listing.base), [listing.base]);
   const cheapest = quotes[0]!;
-  const delta = Math.round(((cheapest.total - section.avg30) / section.avg30) * 100);
-  const below = cheapest.total < section.avg30;
+  const delta = Math.round(((cheapest.total - zone.avg30) / zone.avg30) * 100);
+  const below = cheapest.total < zone.avg30;
+
+  const selectZone = (id: string) => {
+    setZoneId(id);
+    setListingId(null);
+  };
 
   return (
     <main className="mx-auto min-h-screen max-w-md bg-background pb-28">
@@ -86,36 +118,80 @@ function EventDetail() {
         </p>
       </section>
 
-      {/* Seat map + section picker */}
+      {/* Seat map + live listings for the tapped section */}
       <section className="px-6 pt-7">
-        <label
-          htmlFor="section"
-          className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground"
-        >
-          Where you'll sit
-        </label>
+        <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          {event.venue}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Tap any section to see what's actually available there.
+        </p>
         <div className="mt-3">
-          <VenueMap event={event} selectedId={sectionId} onSelect={setSectionId} />
+          <VenueMap event={event} inventory={inventory} selectedId={zone.zone.id} onSelect={selectZone} />
         </div>
-        <div className="relative mt-3">
-          <select
-            id="section"
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-border bg-background px-4 py-4 text-base font-semibold outline-none focus:border-primary"
-          >
-            {event.sections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
-            strokeWidth={2.2}
-          />
+
+        <div className="mt-4 rounded-2xl border border-border">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <div className="min-w-0">
+              <p className="truncate text-base font-bold">{zone.zone.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {zone.listings.length} {zone.listings.length === 1 ? "listing" : "listings"} ·{" "}
+                {zone.seats} tickets
+              </p>
+            </div>
+            <p className="price shrink-0 text-sm font-bold text-primary">from {money(zone.from)}</p>
+          </div>
+          <ul className="divide-y divide-border">
+            {zone.listings.map((l) => {
+              const active = l.id === listing.id;
+              return (
+                <li key={l.id}>
+                  <button
+                    onClick={() => setListingId(l.id)}
+                    aria-pressed={active}
+                    className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
+                      active ? "bg-accent-soft" : ""
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <Ticket
+                        className={`h-4 w-4 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`}
+                        strokeWidth={2.2}
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold">
+                          {zone.zone.standing ? "General admission" : `Row ${l.row}`}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {l.qty} {l.qty === 1 ? "ticket" : "tickets"} together
+                        </span>
+                      </span>
+                    </span>
+                    <span className="price shrink-0 text-lg font-bold">{money(l.base)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {available.slice(0, 8).map((i) => (
+            <button
+              key={i.zone.id}
+              onClick={() => selectZone(i.zone.id)}
+              className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-bold ${
+                i.zone.id === zone.zone.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border"
+              }`}
+            >
+              {i.zone.name} · {money(i.from)}
+            </button>
+          ))}
         </div>
       </section>
+
 
 
       {/* Out-the-door prices */}
@@ -161,10 +237,11 @@ function EventDetail() {
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Market value · 30-day avg
         </h2>
-        <p className="price mt-3 text-6xl font-bold leading-none">{money(section.avg30)}</p>
+        <p className="price mt-3 text-6xl font-bold leading-none">{money(zone.avg30)}</p>
         <p className="mt-3 text-sm text-muted-foreground">
-          Average out-the-door price paid for {section.name} over the last 30 days.
+          Average out-the-door price paid for {zone.zone.name} over the last 30 days.
         </p>
+
         <span
           className={`mt-4 inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide ${
             below ? "bg-success-soft text-success" : "bg-accent-soft text-primary"

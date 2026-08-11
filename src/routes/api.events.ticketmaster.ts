@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/events/ticketmaster")({
 
         // Read the secret here, per-request, inside the handler — not at
         // module scope. See src/lib/providers/ticketmaster.ts for why.
-        const apiKey = process.env.TICKETMASTER_API_KEY;
+        const apiKey = process.env["TICKETMASTER_API_KEY"];
 
         const result = await fetchTicketmasterEvents(params, apiKey);
 
