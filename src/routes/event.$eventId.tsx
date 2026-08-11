@@ -235,10 +235,11 @@ function EventDetail() {
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Market value · 30-day avg
         </h2>
-        <p className="price mt-3 text-6xl font-bold leading-none">{money(section.avg30)}</p>
+        <p className="price mt-3 text-6xl font-bold leading-none">{money(zone.avg30)}</p>
         <p className="mt-3 text-sm text-muted-foreground">
-          Average out-the-door price paid for {section.name} over the last 30 days.
+          Average out-the-door price paid for {zone.zone.name} over the last 30 days.
         </p>
+
         <span
           className={`mt-4 inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide ${
             below ? "bg-success-soft text-success" : "bg-accent-soft text-primary"
