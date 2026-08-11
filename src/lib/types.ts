@@ -18,7 +18,26 @@
 export type EventSource = "mock" | "ticketmaster" | "eventbrite";
 
 /** Broad event category, used for filtering, icons, and venue-map layout. */
-export type EventCategory = "Concert" | "Sports" | "Theater";
+export type EventCategory =
+  | "Concert"
+  | "Sports"
+  | "Comedy"
+  | "Theater"
+  | "Festival"
+  | "Family"
+  | "Nightlife"
+  | "Other";
+
+/**
+ * Whether a `PassrEvent` is a standard, purchasable event listing, or a
+ * non-standard listing that a provider returns as its own "event" — a
+ * suite/box reservation, a parking pass, a VIP add-on package, etc.
+ * Providers like Ticketmaster mix these into normal search results, so
+ * Passr classifies them (conservatively, from the listing's name/metadata)
+ * rather than guessing or dropping them. UI surfaces can use this later to
+ * filter them out of discovery feeds.
+ */
+export type ListingType = "standard" | "suite" | "vip" | "parking" | "package" | "other";
 
 export type PassrEvent = {
   /** Passr's internal identifier for this event. */
@@ -67,6 +86,13 @@ export type PassrEvent = {
 
   /** Deep link to view/buy the event at the source provider, when available. */
   ticketUrl?: string | undefined;
+
+  /**
+   * Best-effort classification of standard vs. non-standard listing (suite,
+   * parking, VIP package, ...). Undefined for sources that don't need the
+   * distinction (e.g. mock data) — treat as equivalent to "standard".
+   */
+  listingType?: ListingType | undefined;
 };
 
 /**
