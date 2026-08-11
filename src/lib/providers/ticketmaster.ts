@@ -18,6 +18,7 @@
  * provider internals to the browser.
  */
 
+import { classifyListingType, deduplicateEvents } from "@/lib/event-utils";
 import type { EventCategory, PassrEvent } from "@/lib/types";
 
 const TICKETMASTER_EVENTS_ENDPOINT = "https://app.ticketmaster.com/discovery/v2/events.json";
@@ -33,6 +34,7 @@ export type TicketmasterSearchParams = {
   keyword?: string | undefined;
   /** Ticketmaster "segment" name, e.g. "Music", "Sports", "Arts & Theatre" */
   classificationName?: string | undefined;
+  /** Ticketmaster genre ID (sent to Ticketmaster as `genreId`), not a free-text genre name. */
   genre?: string | undefined;
   page?: number | undefined;
   size?: number | undefined;
@@ -59,22 +61,55 @@ export type TicketmasterResult =
   | { ok: false; error: TicketmasterError };
 
 /**
- * Small, explicit provider → Passr category mapping. Ticketmaster's
- * "segment" classification strings don't line up 1:1 with Passr's
- * categories, so this is intentionally a lookup table rather than an
- * assumption that the strings match.
+ * Ticketmaster's classification info for one event, pulled out of whichever
+ * classification `pickPrimaryClassification` selected. Segment is the
+ * top-level bucket (Music, Sports, Arts & Theatre, Family, Film,
+ * Miscellaneous); genre/subGenre/type get more specific within it (e.g.
+ * genre "Comedy" under segment "Arts & Theatre", genre "Festival" under
+ * segment "Music").
  */
-const SEGMENT_TO_CATEGORY: Record<string, EventCategory> = {
-  music: "Concert",
-  sports: "Sports",
-  "arts & theatre": "Theater",
-  theatre: "Theater",
-  theater: "Theater",
+type ClassificationInfo = {
+  segment?: string | undefined;
+  genre?: string | undefined;
+  subGenre?: string | undefined;
+  type?: string | undefined;
 };
 
-function mapCategory(segmentName: string | undefined): EventCategory | undefined {
-  if (!segmentName) return undefined;
-  return SEGMENT_TO_CATEGORY[segmentName.trim().toLowerCase()];
+/**
+ * Maps Ticketmaster classification info onto Passr's provider-agnostic
+ * `EventCategory`. Intentionally a small set of explicit, conservative
+ * rules rather than a straight segment-name lookup, since categories like
+ * Comedy and Festival live at the genre/subGenre level in Ticketmaster's
+ * data, not the segment level.
+ *
+ * Always returns a category — falls back to "Other" rather than ever
+ * skipping/dropping an event just because it doesn't confidently fit one of
+ * the more specific buckets (e.g. Ticketmaster's "Film" or "Miscellaneous"
+ * segments).
+ */
+function mapCategory(info: ClassificationInfo): EventCategory {
+  const segment = info.segment?.trim().toLowerCase();
+  const genre = info.genre?.trim().toLowerCase();
+  const subGenre = info.subGenre?.trim().toLowerCase();
+  const type = info.type?.trim().toLowerCase();
+
+  const mentions = (needle: string) => segment === needle || genre === needle || subGenre === needle || type === needle;
+
+  // Festivals show up under several segments (usually Music) but are
+  // identified by genre/subGenre/type, not by having their own segment.
+  if (mentions("festival")) return "Festival";
+
+  // Comedy is typically a genre under "Arts & Theatre" or "Miscellaneous",
+  // not its own segment — check before the segment-based rules below.
+  if (mentions("comedy")) return "Comedy";
+
+  if (segment === "music") return "Concert";
+  if (segment === "sports") return "Sports";
+  if (segment === "arts & theatre" || segment === "theatre" || segment === "theater") return "Theater";
+  if (segment === "family") return "Family";
+  if (mentions("nightlife")) return "Nightlife";
+
+  return "Other";
 }
 
 export async function fetchTicketmasterEvents(
@@ -131,7 +166,10 @@ export async function fetchTicketmasterEvents(
     if (normalized) events.push(normalized);
   }
 
-  return { ok: true, events };
+  // Ticketmaster frequently returns multiple listings for one underlying
+  // event (a normal listing plus a suite/VIP/parking variant). Collapse
+  // those conservatively before handing events back to the caller.
+  return { ok: true, events: deduplicateEvents(events) };
 }
 
 function buildRequestUrl(params: TicketmasterSearchParams, apiKey: string): string {
@@ -144,7 +182,10 @@ function buildRequestUrl(params: TicketmasterSearchParams, apiKey: string): stri
   if (params.endDateTime) url.searchParams.set("endDateTime", params.endDateTime);
   if (params.keyword) url.searchParams.set("keyword", params.keyword);
   if (params.classificationName) url.searchParams.set("classificationName", params.classificationName);
-  if (params.genre) url.searchParams.set("genre", params.genre);
+  // Ticketmaster's own query param for this is `genreId` (it expects a
+  // Ticketmaster genre ID, not a free-text genre name) — `genre` here is
+  // just Passr's route's param name, kept stable for callers.
+  if (params.genre) url.searchParams.set("genreId", params.genre);
   if (params.page !== undefined) url.searchParams.set("page", String(params.page));
   if (params.size !== undefined) url.searchParams.set("size", String(params.size));
   return url.toString();
@@ -183,9 +224,9 @@ function num(v: unknown): number | undefined {
 /** Ticketmaster omits `_embedded` entirely when a search has zero results. */
 function extractRawEvents(payload: unknown): unknown[] | undefined {
   if (!isRecord(payload)) return undefined;
-  if (payload["_embedded"] === undefined) return []; // empty results, not malformed
-  if (!isRecord(payload["_embedded"])) return undefined;
-  const events = payload["_embedded"]["events"];
+  if (payload._embedded === undefined) return []; // empty results, not malformed
+  if (!isRecord(payload._embedded)) return undefined;
+  const events = payload._embedded.events;
   if (events === undefined) return [];
   return Array.isArray(events) ? events : undefined;
 }
@@ -193,16 +234,16 @@ function extractRawEvents(payload: unknown): unknown[] | undefined {
 function pickPrimaryClassification(
   classifications: Record<string, unknown>[],
 ): Record<string, unknown> | undefined {
-  return classifications.find((c) => c["primary"] === true) ?? classifications[0];
+  return classifications.find((c) => c.primary === true) ?? classifications[0];
 }
 
 function pickBestImage(images: unknown[]): string | undefined {
   let best: { url: string; width: number } | undefined;
   for (const img of images) {
     if (!isRecord(img)) continue;
-    const url = str(img["url"]);
+    const url = str(img.url);
     if (!url) continue;
-    const width = num(img["width"]) ?? 0;
+    const width = num(img.width) ?? 0;
     if (!best || width > best.width) best = { url, width };
   }
   return best?.url;
@@ -213,7 +254,7 @@ function pickStartingPrice(priceRanges: unknown[]): number | undefined {
   let lowest: number | undefined;
   for (const range of priceRanges) {
     if (!isRecord(range)) continue;
-    const min = num(range["min"]);
+    const min = num(range.min);
     if (min === undefined) continue;
     if (lowest === undefined || min < lowest) lowest = min;
   }
@@ -234,61 +275,61 @@ function formatDisplayDate(localDate: string | undefined, localTime: string | un
 function normalizeEvent(raw: unknown): PassrEvent | undefined {
   if (!isRecord(raw)) return undefined;
 
-  const id = str(raw["id"]);
-  const name = str(raw["name"]);
+  const id = str(raw.id);
+  const name = str(raw.name);
   if (!id || !name) return undefined; // not enough to build a usable event
 
-  const classificationsRaw = Array.isArray(raw["classifications"]) ? raw["classifications"] : [];
+  const classificationsRaw = Array.isArray(raw.classifications) ? raw.classifications : [];
   const classifications = classificationsRaw.filter(isRecord);
   const classification = pickPrimaryClassification(classifications);
-  const segmentName = classification && isRecord(classification["segment"]) ? str(classification["segment"]["name"]) : undefined;
+  const segmentName = classification && isRecord(classification.segment) ? str(classification.segment.name) : undefined;
+  const genre = classification && isRecord(classification.genre) ? str(classification.genre.name) : undefined;
+  const subGenre = classification && isRecord(classification.subGenre) ? str(classification.subGenre.name) : undefined;
+  const classificationType = classification ? classification["type"] : undefined;
+  const typeName = isRecord(classificationType) ? str(classificationType["name"]) : undefined;
 
-  const category = mapCategory(segmentName);
-  // Ticketmaster's classification doesn't map confidently onto one of
-  // Passr's three categories (e.g. "Film", "Miscellaneous") — skip this
-  // event rather than mislabel it.
-  if (!category) return undefined;
+  // Never skip an event just because its classification doesn't confidently
+  // map onto one of Passr's more specific categories — mapCategory falls
+  // back to "Other" rather than returning undefined.
+  const category = mapCategory({ segment: segmentName, genre, subGenre, type: typeName });
 
-  const genre = classification && isRecord(classification["genre"]) ? str(classification["genre"]["name"]) : undefined;
-  const subGenre = classification && isRecord(classification["subGenre"]) ? str(classification["subGenre"]["name"]) : undefined;
-
-  const embedded = isRecord(raw["_embedded"]) ? raw["_embedded"] : undefined;
-  const venues = embedded && Array.isArray(embedded["venues"]) ? embedded["venues"].filter(isRecord) : [];
+  const embedded = isRecord(raw._embedded) ? raw._embedded : undefined;
+  const venues = embedded && Array.isArray(embedded.venues) ? embedded.venues.filter(isRecord) : [];
   const venue = venues[0];
-  const attractions = embedded && Array.isArray(embedded["attractions"]) ? embedded["attractions"].filter(isRecord) : [];
+  const attractions = embedded && Array.isArray(embedded.attractions) ? embedded.attractions.filter(isRecord) : [];
   const attraction = attractions[0];
 
-  const venueName = venue ? str(venue["name"]) : undefined;
-  const venueCity = venue && isRecord(venue["city"]) ? str(venue["city"]["name"]) : undefined;
-  const venueState = venue && isRecord(venue["state"]) ? (str(venue["state"]["stateCode"]) ?? str(venue["state"]["name"])) : undefined;
+  const venueName = venue ? str(venue.name) : undefined;
+  const venueCity = venue && isRecord(venue.city) ? str(venue.city.name) : undefined;
+  const venueState = venue && isRecord(venue.state) ? (str(venue.state.stateCode) ?? str(venue.state.name)) : undefined;
   const venueCountry =
-    venue && isRecord(venue["country"]) ? (str(venue["country"]["countryCode"]) ?? str(venue["country"]["name"])) : undefined;
-  const location = venue && isRecord(venue["location"]) ? venue["location"] : undefined;
-  const latitude = location ? num(location["latitude"]) : undefined;
-  const longitude = location ? num(location["longitude"]) : undefined;
+    venue && isRecord(venue.country) ? (str(venue.country.countryCode) ?? str(venue.country.name)) : undefined;
+  const location = venue && isRecord(venue.location) ? venue.location : undefined;
+  const latitude = location ? num(location.latitude) : undefined;
+  const longitude = location ? num(location.longitude) : undefined;
 
-  const dates = isRecord(raw["dates"]) ? raw["dates"] : undefined;
-  const start = dates && isRecord(dates["start"]) ? dates["start"] : undefined;
-  const startDateTime = start ? str(start["dateTime"]) : undefined;
-  const localDate = start ? str(start["localDate"]) : undefined;
-  const localTime = start ? str(start["localTime"]) : undefined;
+  const dates = isRecord(raw.dates) ? raw.dates : undefined;
+  const start = dates && isRecord(dates.start) ? dates.start : undefined;
+  const startDateTime = start ? str(start.dateTime) : undefined;
+  const localDate = start ? str(start.localDate) : undefined;
+  const localTime = start ? str(start.localTime) : undefined;
   const date = formatDisplayDate(localDate, localTime) ?? localDate ?? "Date to be announced";
 
-  const images = Array.isArray(raw["images"]) ? raw["images"] : [];
+  const images = Array.isArray(raw.images) ? raw.images : [];
   const image = pickBestImage(images) ?? "";
 
-  const priceRanges = Array.isArray(raw["priceRanges"]) ? raw["priceRanges"] : [];
+  const priceRanges = Array.isArray(raw.priceRanges) ? raw.priceRanges : [];
   const startingAt = pickStartingPrice(priceRanges);
 
-  const description = str(raw["info"]) ?? str(raw["pleaseNote"]);
-  const ticketUrl = str(raw["url"]);
+  const description = str(raw.info) ?? str(raw.pleaseNote);
+  const ticketUrl = str(raw.url);
 
   const event: PassrEvent = {
     id: `ticketmaster-${id}`,
     source: "ticketmaster",
     sourceEventId: id,
     name,
-    subtitle: attraction ? str(attraction["name"]) : undefined,
+    subtitle: attraction ? str(attraction.name) : undefined,
     description,
     category,
     genre,
@@ -305,6 +346,7 @@ function normalizeEvent(raw: unknown): PassrEvent | undefined {
     startingAt,
     trending: false,
     ticketUrl,
+    listingType: classifyListingType(name),
   };
 
   return event;
