@@ -76,7 +76,9 @@ function ring(
     const a1 = from + i * span + gap / 2;
     const a2 = from + (i + 1) * span - gap / 2;
     const mid = (a1 + a2) / 2;
-    const [lx, ly] = pt(cx, cy, (r1 + r2) / 2, mid);
+    const [lxRaw, lyRaw] = pt(cx, cy, (r1 + r2) / 2, mid);
+    const lx = Math.round(lxRaw * 10) / 10;
+    const ly = Math.round(lyRaw * 10) / 10;
     const num = opts.startNumber + i;
     zones.push({
       id: `${prefix}-${num}`,
