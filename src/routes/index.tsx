@@ -27,7 +27,20 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+/** Maps Passr's internal taxonomy categories onto event categories. */
+const CATEGORY_TO_EVENT: Record<string, EventCategory | undefined> = {
+  music: "Concert",
+  sports: "Sports",
+  comedy: "Comedy",
+  theater: "Theater",
+  dance: "Theater",
+  festivals: "Festival",
+  family: "Family",
+  nightlife: "Nightlife",
+};
+
 function Home() {
+
   const [q, setQ] = useState("");
   const [profile, setProfile] = useState<PassrProfile | null>(null);
 
