@@ -6,6 +6,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { AffiliateNote } from "@/components/AffiliateNote";
 import { Onboarding } from "@/components/Onboarding";
 import { getProfile, type PassrProfile } from "@/lib/profile";
+import type { EventCategory } from "@/lib/types";
+
 import logo from "@/assets/passr-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
