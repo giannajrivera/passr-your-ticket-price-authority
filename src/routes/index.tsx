@@ -42,10 +42,17 @@ function Home() {
   }, [q]);
 
   const picks = useMemo(() => {
+    // Prefer the structured preference model; fall back to legacy answers.
+    const cats = profile?.preferences?.categories ?? [];
+    if (cats.length) {
+      const wanted = new Set(cats.map((c) => CATEGORY_TO_EVENT[c]).filter(Boolean));
+      return events.filter((e) => wanted.has(e.category));
+    }
     const liked = profile?.answers["categories"] ?? [];
     if (!liked.length) return [];
     return events.filter((e) => liked.some((c) => c.toLowerCase().startsWith(e.category.toLowerCase())));
   }, [profile]);
+
 
   const trending = results.filter((e) => e.trending);
   const rest = results.filter((e) => !e.trending);
