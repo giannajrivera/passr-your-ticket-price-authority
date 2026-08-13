@@ -6,6 +6,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { AffiliateNote } from "@/components/AffiliateNote";
 import { Onboarding } from "@/components/Onboarding";
 import { getProfile, type PassrProfile } from "@/lib/profile";
+import type { EventCategory } from "@/lib/types";
+
 import logo from "@/assets/passr-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
@@ -27,7 +29,20 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+/** Maps Passr's internal taxonomy categories onto event categories. */
+const CATEGORY_TO_EVENT: Record<string, EventCategory | undefined> = {
+  music: "Concert",
+  sports: "Sports",
+  comedy: "Comedy",
+  theater: "Theater",
+  dance: "Theater",
+  festivals: "Festival",
+  family: "Family",
+  nightlife: "Nightlife",
+};
+
 function Home() {
+
   const [q, setQ] = useState("");
   const [profile, setProfile] = useState<PassrProfile | null>(null);
 
@@ -42,10 +57,17 @@ function Home() {
   }, [q]);
 
   const picks = useMemo(() => {
+    // Prefer the structured preference model; fall back to legacy answers.
+    const cats = profile?.preferences?.categories ?? [];
+    if (cats.length) {
+      const wanted = new Set(cats.map((c) => CATEGORY_TO_EVENT[c]).filter(Boolean));
+      return events.filter((e) => wanted.has(e.category));
+    }
     const liked = profile?.answers["categories"] ?? [];
     if (!liked.length) return [];
     return events.filter((e) => liked.some((c) => c.toLowerCase().startsWith(e.category.toLowerCase())));
   }, [profile]);
+
 
   const trending = results.filter((e) => e.trending);
   const rest = results.filter((e) => !e.trending);
