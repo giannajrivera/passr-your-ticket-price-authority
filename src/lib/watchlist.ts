@@ -87,7 +87,10 @@ export function toggleNotify(eventId: string) {
 
   items = items.map((item) =>
     item.eventId === eventId
-      ? { ...item, notify: !item.notify }
+      ? {
+          ...item,
+          notify: !item.notify,
+        }
       : item,
   );
 
@@ -103,29 +106,43 @@ export function toggleSaved(event: PassrEvent, currentPrice: number) {
   if (existing) {
     items = items.filter((item) => item.eventId !== event.id);
   } else {
-    const savedEvent = {
+    const savedEvent: SavedEvent = {
       id: event.id,
       name: event.name,
       date: event.date,
       venue: event.venue,
-      city: event.city,
-      state: event.state,
       category: event.category,
-      subtitle: event.subtitle,
-      image: event.image,
-      ticketUrl: event.ticketUrl,
-    } satisfies SavedEvent;
 
-    items = [
-      ...items,
-      {
-        eventId: event.id,
-        savedPrice: currentPrice,
-        currentPrice,
-        notify: true,
-        event: savedEvent,
-      },
-    ];
+      ...(event.city !== undefined && {
+        city: event.city,
+      }),
+
+      ...(event.state !== undefined && {
+        state: event.state,
+      }),
+
+      ...(event.subtitle !== undefined && {
+        subtitle: event.subtitle,
+      }),
+
+      ...(event.image !== undefined && {
+        image: event.image,
+      }),
+
+      ...(event.ticketUrl !== undefined && {
+        ticketUrl: event.ticketUrl,
+      }),
+    };
+
+    const newItem: WatchItem = {
+      eventId: event.id,
+      savedPrice: currentPrice,
+      currentPrice,
+      notify: true,
+      event: savedEvent,
+    };
+
+    items = [...items, newItem];
   }
 
   persist();
