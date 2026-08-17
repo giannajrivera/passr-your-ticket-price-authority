@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { getEvent, money } from "@/lib/mock-data";
+import { ArrowDownRight, ArrowUpRight, BellOff } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { AffiliateNote } from "@/components/AffiliateNote";
 import { toggleNotify, useWatchlist } from "@/lib/watchlist";
+import { money } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/watchlist")({
   head: () => ({
@@ -40,151 +40,171 @@ function Watchlist() {
         </h1>
 
         <p className="mt-2 text-sm text-background/70">
-          Prices below are out-the-door, fees included.
+          Keep track of events you want to watch.
         </p>
       </header>
 
-      <div className="space-y-3 px-6 pt-6">
-        {items.length === 0 && (
-          <p className="py-16 text-center text-sm text-muted-foreground">
-            Nothing saved yet. Tap the bell on any event to track it.
-          </p>
-        )}
+      {items.length === 0 ? (
+        <section className="px-6 pt-10">
+          <div className="rounded-2xl border border-border px-6 py-12 text-center">
+            <BellOff
+              className="mx-auto h-7 w-7 text-muted-foreground"
+              strokeWidth={2}
+            />
 
-        {items.map((item) => {
-          /*
-           * New saved events contain their own event snapshot.
-           * Older/mock saved items may not, so we keep the mock-data fallback
-           * temporarily while we transition away from mock data.
-           */
-          const savedEvent = item.event;
-          const legacyEvent = savedEvent
-            ? null
-            : getEvent(item.eventId);
+            <h2 className="mt-4 text-lg font-bold">
+              Your watchlist is empty
+            </h2>
 
-          const event = savedEvent ?? legacyEvent;
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Tap the bell on an event to save it here and keep an eye on its
+              price.
+            </p>
 
-          if (!event) return null;
-
-          const diff = item.currentPrice - item.savedPrice;
-          const down = diff < 0;
-          const pct =
-            item.savedPrice > 0
-              ? Math.abs(
-                  Math.round(
-                    (diff / item.savedPrice) * 100,
-                  ),
-                )
-              : 0;
-
-          return (
-            <article
-              key={item.eventId}
-              className="overflow-hidden rounded-2xl border border-border"
+            <Link
+              to="/"
+              className="mt-6 inline-flex rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
             >
-              {event.image && (
-                <Link
-                  to="/event/$eventId"
-                  params={{ eventId: event.id }}
-                  className="block"
-                >
-                  <img
-                    src={event.image}
-                    alt={event.name}
-                    width={1024}
-                    height={640}
-                    loading="lazy"
-                    className="h-28 w-full object-cover"
-                  />
-                </Link>
-              )}
+              Find events
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <div className="space-y-3 px-6 pt-6">
+          {items.map((item) => {
+            const event = item.event;
 
-              <div className="p-5">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+            const diff = item.currentPrice - item.savedPrice;
+            const down = diff < 0;
+
+            const pct =
+              item.savedPrice > 0
+                ? Math.abs(
+                    Math.round((diff / item.savedPrice) * 100),
+                  )
+                : 0;
+
+            return (
+              <article
+                key={item.eventId}
+                className="overflow-hidden rounded-2xl border border-border"
+              >
+                {event.image && (
                   <Link
                     to="/event/$eventId"
                     params={{ eventId: event.id }}
-                    className="min-w-0"
+                    className="block"
                   >
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
-                      {event.category}
-                    </p>
-
-                    <h2 className="mt-1 truncate text-lg font-bold leading-tight">
-                      {event.name}
-                    </h2>
-
-                    <p className="mt-1 truncate text-sm text-muted-foreground">
-                      {event.date} · {event.venue}
-                    </p>
-
-                    {event.city && (
-                      <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                        {event.city}
-                        {event.state ? `, ${event.state}` : ""}
-                      </p>
-                    )}
+                    <img
+                      src={event.image}
+                      alt={event.name}
+                      width={1024}
+                      height={640}
+                      loading="lazy"
+                      className="h-28 w-full object-cover"
+                    />
                   </Link>
+                )}
 
-                  <div className="shrink-0 text-right">
-                    <p className="price text-2xl font-bold">
-                      {money(item.currentPrice)}
-                    </p>
-
-                    <span
-                      className={`mt-1 inline-flex items-center gap-1 text-xs font-bold ${
-                        down
-                          ? "text-success"
-                          : "text-primary"
-                      }`}
+                <div className="p-5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                    <Link
+                      to="/event/$eventId"
+                      params={{ eventId: event.id }}
+                      className="min-w-0"
                     >
-                      {down ? (
-                        <ArrowDownRight
-                          className="h-3.5 w-3.5"
-                          strokeWidth={3}
-                        />
-                      ) : (
-                        <ArrowUpRight
-                          className="h-3.5 w-3.5"
-                          strokeWidth={3}
-                        />
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+                        {event.category}
+                      </p>
+
+                      <h2 className="mt-1 truncate text-lg font-bold leading-tight">
+                        {event.name}
+                      </h2>
+
+                      <p className="mt-1 truncate text-sm text-muted-foreground">
+                        {event.date} · {event.venue}
+                      </p>
+
+                      {event.city && (
+                        <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                          {event.city}
+                          {event.state ? `, ${event.state}` : ""}
+                        </p>
+                      )}
+                    </Link>
+
+                    <div className="shrink-0 text-right">
+                      <p className="price text-2xl font-bold">
+                        {money(item.currentPrice)}
+                      </p>
+
+                      {diff !== 0 && (
+                        <span
+                          className={`mt-1 inline-flex items-center gap-1 text-xs font-bold ${
+                            down ? "text-success" : "text-primary"
+                          }`}
+                        >
+                          {down ? (
+                            <ArrowDownRight
+                              className="h-3.5 w-3.5"
+                              strokeWidth={3}
+                            />
+                          ) : (
+                            <ArrowUpRight
+                              className="h-3.5 w-3.5"
+                              strokeWidth={3}
+                            />
+                          )}
+
+                          {pct}% since saved
+                        </span>
                       )}
 
-                      {pct}% since saved
-                    </span>
+                      {diff === 0 && (
+                        <span className="mt-1 block text-xs font-semibold text-muted-foreground">
+                          price unchanged
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        Price drop alerts
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Saved at {money(item.savedPrice)}
+                      </p>
+                    </div>
+
+                    <button
+                      role="switch"
+                      aria-checked={item.notify}
+                      aria-label={
+                        item.notify
+                          ? "Turn off price drop alerts"
+                          : "Turn on price drop alerts"
+                      }
+                      onClick={() => toggleNotify(item.eventId)}
+                      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                        item.notify ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 h-5 w-5 rounded-full bg-background transition-all ${
+                          item.notify ? "left-6" : "left-1"
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
-
-                <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-                  <span className="text-sm font-semibold">
-                    Notify me if price drops
-                  </span>
-
-                  <button
-                    role="switch"
-                    aria-checked={item.notify}
-                    aria-label="Notify me if price drops"
-                    onClick={() => toggleNotify(item.eventId)}
-                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-                      item.notify
-                        ? "bg-primary"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-1 h-5 w-5 rounded-full bg-background transition-all ${
-                        item.notify
-                          ? "left-6"
-                          : "left-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <AffiliateNote className="px-6 pb-2 pt-8" />
 
