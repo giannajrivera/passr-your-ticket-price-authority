@@ -24,6 +24,7 @@ function parseSearchParams(url: URL): TicketmasterSearchParams {
   const page = sp.get("page");
   const size = sp.get("size");
   return {
+    id: sp.get("id") ?? undefined,
     city: sp.get("city") ?? undefined,
     stateCode: sp.get("stateCode") ?? undefined,
     countryCode: sp.get("countryCode") ?? undefined,

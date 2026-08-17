@@ -24,6 +24,8 @@ import type { EventCategory, PassrEvent } from "@/lib/types";
 const TICKETMASTER_EVENTS_ENDPOINT = "https://app.ticketmaster.com/discovery/v2/events.json";
 
 export type TicketmasterSearchParams = {
+  /** Ticketmaster event id — Discovery's `id` filter, used for single-event lookups. */
+  id?: string | undefined;
   city?: string | undefined;
   stateCode?: string | undefined;
   countryCode?: string | undefined;
@@ -175,6 +177,7 @@ export async function fetchTicketmasterEvents(
 function buildRequestUrl(params: TicketmasterSearchParams, apiKey: string): string {
   const url = new URL(TICKETMASTER_EVENTS_ENDPOINT);
   url.searchParams.set("apikey", apiKey);
+  if (params.id) url.searchParams.set("id", params.id);
   if (params.city) url.searchParams.set("city", params.city);
   if (params.stateCode) url.searchParams.set("stateCode", params.stateCode);
   if (params.countryCode) url.searchParams.set("countryCode", params.countryCode);

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { getVenueLayout } from "@/lib/venue-maps";
 import type { ZoneInventory } from "@/lib/venue-listings";
-import type { MockPassrEvent } from "@/lib/mock-data";
+import type { PassrEvent } from "@/lib/types";
 import { money } from "@/lib/mock-data";
 
 export function VenueMap({
@@ -10,7 +10,7 @@ export function VenueMap({
   selectedId,
   onSelect,
 }: {
-  event: MockPassrEvent;
+  event: PassrEvent;
   inventory: Map<string, ZoneInventory>;
   selectedId: string;
   onSelect: (zoneId: string) => void;
