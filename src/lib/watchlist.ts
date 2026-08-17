@@ -33,8 +33,10 @@ function emit() {
   listeners.forEach((listener) => listener());
 }
 
-function loadFromStorage() {
-  if (typeof window === "undefined") return;
+function hydrate() {
+  if (hydrated || typeof window === "undefined") return;
+
+  hydrated = true;
 
   try {
     const raw = window.localStorage.getItem(KEY);
@@ -46,33 +48,24 @@ function loadFromStorage() {
 
     const parsed: unknown = JSON.parse(raw);
 
-    if (!Array.isArray(parsed)) {
+    if (Array.isArray(parsed)) {
+      items = parsed.filter(
+        (item): item is WatchItem =>
+          typeof item === "object" &&
+          item !== null &&
+          typeof (item as WatchItem).eventId === "string" &&
+          typeof (item as WatchItem).savedPrice === "number" &&
+          typeof (item as WatchItem).currentPrice === "number" &&
+          typeof (item as WatchItem).notify === "boolean" &&
+          typeof (item as WatchItem).event === "object" &&
+          (item as WatchItem).event !== null,
+      );
+    } else {
       items = [];
-      return;
     }
-
-    // Only keep properly shaped saved events.
-    items = parsed.filter(
-      (item): item is WatchItem =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as WatchItem).eventId === "string" &&
-        typeof (item as WatchItem).savedPrice === "number" &&
-        typeof (item as WatchItem).currentPrice === "number" &&
-        typeof (item as WatchItem).notify === "boolean" &&
-        typeof (item as WatchItem).event === "object" &&
-        (item as WatchItem).event !== null,
-    );
   } catch {
     items = [];
   }
-}
-
-function hydrate() {
-  if (hydrated || typeof window === "undefined") return;
-
-  hydrated = true;
-  loadFromStorage();
 }
 
 function persist() {
@@ -81,30 +74,43 @@ function persist() {
   try {
     window.localStorage.setItem(KEY, JSON.stringify(items));
   } catch {
-    // Ignore localStorage failures.
+    /* Ignore localStorage failures. */
   }
-}
-
-function getSnapshot() {
-  return items;
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-
-  hydrate();
-
-  return () => {
-    listeners.delete(listener);
-  };
 }
 
 export function useWatchlist() {
   return useSyncExternalStore(
-    subscribe,
-    getSnapshot,
+    (listener) => {
+      listeners.add(listener);
+
+      hydrate();
+
+      // Hydration may have changed the store.
+      listener();
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    () => items,
     () => [],
   );
+}
+
+export function toggleNotify(eventId: string) {
+  hydrate();
+
+  items = items.map((item) =>
+    item.eventId === eventId
+      ? {
+          ...item,
+          notify: !item.notify,
+        }
+      : item,
+  );
+
+  persist();
+  emit();
 }
 
 export function toggleSaved(event: PassrEvent, currentPrice: number) {
@@ -128,32 +134,17 @@ export function toggleSaved(event: PassrEvent, currentPrice: number) {
       ticketUrl: event.ticketUrl,
     };
 
-    const newItem: WatchItem = {
-      eventId: event.id,
-      savedPrice: currentPrice,
-      currentPrice,
-      notify: true,
-      event: savedEvent,
-    };
-
-    items = [...items, newItem];
+    items = [
+      ...items,
+      {
+        eventId: event.id,
+        savedPrice: currentPrice,
+        currentPrice,
+        notify: true,
+        event: savedEvent,
+      },
+    ];
   }
-
-  persist();
-  emit();
-}
-
-export function toggleNotify(eventId: string) {
-  hydrate();
-
-  items = items.map((item) =>
-    item.eventId === eventId
-      ? {
-          ...item,
-          notify: !item.notify,
-        }
-      : item,
-  );
 
   persist();
   emit();
