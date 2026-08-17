@@ -7,68 +7,134 @@ export type WatchItem = {
   notify: boolean;
 };
 
-const KEY = "passr.watchlist.v1";
+const KEY = "passr.watchlist.v2";
 
-const seed: WatchItem[] = [
-  { eventId: "nova-quinn", savedPrice: 214, currentPrice: 198, notify: true },
-  { eventId: "harbor-city-fc", savedPrice: 118, currentPrice: 133, notify: false },
-  { eventId: "the-winter-room", savedPrice: 92, currentPrice: 84, notify: true },
-];
-
-let items: WatchItem[] = seed;
+let items: WatchItem[] = [];
 let hydrated = false;
+
 const listeners = new Set<() => void>();
 
 function emit() {
-  listeners.forEach((l) => l());
+  listeners.forEach((listener) => listener());
 }
 
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
+
   hydrated = true;
+
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (raw) items = JSON.parse(raw) as WatchItem[];
+
+    if (!raw) {
+      items = [];
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      items = [];
+      return;
+    }
+
+    items = parsed.filter(
+      (item): item is WatchItem =>
+        item &&
+        typeof item.eventId === "string" &&
+        typeof item.savedPrice === "number" &&
+        typeof item.currentPrice === "number" &&
+        typeof item.notify === "boolean",
+    );
   } catch {
-    /* ignore */
+    items = [];
   }
+
   emit();
 }
 
 function persist() {
+  if (typeof window === "undefined") return;
+
   try {
     window.localStorage.setItem(KEY, JSON.stringify(items));
   } catch {
-    /* ignore */
+    // Ignore localStorage failures.
   }
 }
 
 export function useWatchlist() {
   return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
+    (callback) => {
+      listeners.add(callback);
       hydrate();
-      return () => listeners.delete(cb);
+
+      return () => {
+        listeners.delete(callback);
+      };
     },
     () => items,
-    () => seed,
+    () => [],
   );
 }
 
-export function toggleNotify(eventId: string) {
-  items = items.map((i) => (i.eventId === eventId ? { ...i, notify: !i.notify } : i));
+export function toggleSaved(eventId: string, currentPrice: number) {
+  hydrate();
+
+  const existing = items.some((item) => item.eventId === eventId);
+
+  if (existing) {
+    items = items.filter((item) => item.eventId !== eventId);
+  } else {
+    items = [
+      ...items,
+      {
+        eventId,
+        savedPrice: currentPrice,
+        currentPrice,
+        notify: true,
+      },
+    ];
+  }
+
   persist();
   emit();
 }
 
-export function toggleSaved(eventId: string, currentPrice: number) {
-  items = items.some((i) => i.eventId === eventId)
-    ? items.filter((i) => i.eventId !== eventId)
-    : [...items, { eventId, savedPrice: currentPrice, currentPrice, notify: true }];
+export function toggleNotify(eventId: string) {
+  hydrate();
+
+  items = items.map((item) =>
+    item.eventId === eventId
+      ? {
+          ...item,
+          notify: !item.notify,
+        }
+      : item,
+  );
+
   persist();
   emit();
 }
 
 export function isSaved(list: WatchItem[], eventId: string) {
-  return list.some((i) => i.eventId === eventId);
+  return list.some((item) => item.eventId === eventId);
+}
+
+export function removeSaved(eventId: string) {
+  hydrate();
+
+  items = items.filter((item) => item.eventId !== eventId);
+
+  persist();
+  emit();
+}
+
+export function clearWatchlist() {
+  hydrate();
+
+  items = [];
+
+  persist();
+  emit();
 }
