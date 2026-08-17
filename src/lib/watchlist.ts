@@ -19,80 +19,97 @@ export type WatchItem = {
   savedPrice: number;
   currentPrice: number;
   notify: boolean;
-  event?: SavedEvent;
+  event: SavedEvent;
 };
 
 const KEY = "passr.watchlist.v1";
 
-const seed: WatchItem[] = [
-  { eventId: "nova-quinn", savedPrice: 214, currentPrice: 198, notify: true },
-  { eventId: "harbor-city-fc", savedPrice: 118, currentPrice: 133, notify: false },
-  { eventId: "the-winter-room", savedPrice: 92, currentPrice: 84, notify: true },
-];
-
-let items: WatchItem[] = seed;
+let items: WatchItem[] = [];
 let hydrated = false;
+
 const listeners = new Set<() => void>();
 
 function emit() {
-  listeners.forEach((l) => l());
+  listeners.forEach((listener) => listener());
+}
+
+function loadFromStorage() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const raw = window.localStorage.getItem(KEY);
+
+    if (!raw) {
+      items = [];
+      return;
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      items = [];
+      return;
+    }
+
+    // Only keep properly shaped saved events.
+    items = parsed.filter(
+      (item): item is WatchItem =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as WatchItem).eventId === "string" &&
+        typeof (item as WatchItem).savedPrice === "number" &&
+        typeof (item as WatchItem).currentPrice === "number" &&
+        typeof (item as WatchItem).notify === "boolean" &&
+        typeof (item as WatchItem).event === "object" &&
+        (item as WatchItem).event !== null,
+    );
+  } catch {
+    items = [];
+  }
 }
 
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
 
   hydrated = true;
-
-  try {
-    const raw = window.localStorage.getItem(KEY);
-
-    if (raw) {
-      const parsed = JSON.parse(raw);
-
-      if (Array.isArray(parsed)) {
-        items = parsed as WatchItem[];
-      }
-    }
-  } catch {
-    /* ignore malformed local storage */
-  }
-
-  emit();
+  loadFromStorage();
 }
 
 function persist() {
+  if (typeof window === "undefined") return;
+
   try {
     window.localStorage.setItem(KEY, JSON.stringify(items));
   } catch {
-    /* ignore storage failures */
+    // Ignore localStorage failures.
   }
+}
+
+function getSnapshot() {
+  return items;
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+
+  hydrate();
+
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function useWatchlist() {
   return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      hydrate();
-
-      return () => listeners.delete(cb);
-    },
-    () => items,
-    () => seed,
+    subscribe,
+    getSnapshot,
+    () => [],
   );
-}
-
-export function toggleNotify(eventId: string) {
-  items = items.map((item) =>
-    item.eventId === eventId
-      ? { ...item, notify: !item.notify }
-      : item,
-  );
-
-  persist();
-  emit();
 }
 
 export function toggleSaved(event: PassrEvent, currentPrice: number) {
+  hydrate();
+
   const existing = items.some((item) => item.eventId === event.id);
 
   if (existing) {
@@ -111,17 +128,32 @@ export function toggleSaved(event: PassrEvent, currentPrice: number) {
       ticketUrl: event.ticketUrl,
     };
 
-    items = [
-      ...items,
-      {
-        eventId: event.id,
-        savedPrice: currentPrice,
-        currentPrice,
-        notify: true,
-        event: savedEvent,
-      },
-    ];
+    const newItem: WatchItem = {
+      eventId: event.id,
+      savedPrice: currentPrice,
+      currentPrice,
+      notify: true,
+      event: savedEvent,
+    };
+
+    items = [...items, newItem];
   }
+
+  persist();
+  emit();
+}
+
+export function toggleNotify(eventId: string) {
+  hydrate();
+
+  items = items.map((item) =>
+    item.eventId === eventId
+      ? {
+          ...item,
+          notify: !item.notify,
+        }
+      : item,
+  );
 
   persist();
   emit();
