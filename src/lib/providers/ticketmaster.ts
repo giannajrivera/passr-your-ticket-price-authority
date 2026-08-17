@@ -24,6 +24,8 @@ import type { EventCategory, PassrEvent } from "@/lib/types";
 const TICKETMASTER_EVENTS_ENDPOINT = "https://app.ticketmaster.com/discovery/v2/events.json";
 
 export type TicketmasterSearchParams = {
+  /** Ticketmaster event id — Discovery's `id` filter, used for single-event lookups. */
+  id?: string | undefined;
   city?: string | undefined;
   stateCode?: string | undefined;
   countryCode?: string | undefined;
