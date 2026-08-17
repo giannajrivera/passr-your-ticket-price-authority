@@ -1,3 +1,4 @@
+```tsx
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -14,6 +15,7 @@ import {
   ShieldCheck,
   Ticket,
 } from "lucide-react";
+
 import { getEvent, money, quotesFor } from "@/lib/mock-data";
 import {
   eventsQuery,
@@ -26,23 +28,103 @@ import { venueInventory } from "@/lib/venue-listings";
 import { BottomNav } from "@/components/BottomNav";
 import { VenueMap } from "@/components/VenueMap";
 import { AffiliateNote } from "@/components/AffiliateNote";
-import { isSaved, toggleSaved, useWatchlist } from "@/lib/watchlist";
+import {
+  isSaved,
+  toggleSaved,
+  useWatchlist,
+} from "@/lib/watchlist";
 
 /**
- * Passr's own market layer (section inventory, marketplace quotes, 30-day
- * averages) is still simulated and needs a numeric anchor price. Real
- * Ticketmaster events often ship with no price at all — in that case we
- * anchor the simulation on this constant instead of pretending Ticketmaster
- * gave us a price.
+ * Temporary anchor for Passr's simulated marketplace/seat-map layer.
+ *
+ * Real Ticketmaster events sometimes don't include a price.
+ * We use this only to keep the current UI functional until
+ * Passr has real inventory providers connected.
  */
 const FALLBACK_ANCHOR_PRICE = 75;
+
+/**
+ * Creates a safe search query for external ticket marketplaces.
+ */
+function marketplaceSearchQuery(event: PassrEvent) {
+  return [
+    event.name,
+    event.venue,
+    event.city,
+    event.state,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+/**
+ * External ticket marketplace links.
+ *
+ * IMPORTANT:
+ * These are search links, not claims that Passr has live inventory
+ * from these providers yet.
+ */
+function getMarketplaceLinks(event: PassrEvent) {
+  const query = marketplaceSearchQuery(event);
+  const encoded = encodeURIComponent(query);
+
+  return [
+    {
+      name: "Ticketmaster",
+      url: event.ticketUrl,
+      available: Boolean(event.ticketUrl),
+    },
+    {
+      name: "SeatGeek",
+      url: `https://seatgeek.com/search?search=${encoded}`,
+      available: true,
+    },
+    {
+      name: "StubHub",
+      url: `https://www.stubhub.com/search/?q=${encoded}`,
+      available: true,
+    },
+    {
+      name: "Vivid Seats",
+      url: `https://www.vividseats.com/search?search=${encoded}`,
+      available: true,
+    },
+    {
+      name: "TickPick",
+      url: `https://www.tickpick.com/search/?query=${encoded}`,
+      available: true,
+    },
+    {
+      name: "AXS",
+      url: `https://www.axs.com/search?q=${encoded}`,
+      available: true,
+    },
+    {
+      name: "Eventbrite",
+      url: `https://www.eventbrite.com/d/online/${encoded}/`,
+      available: true,
+    },
+    {
+      name: "DICE",
+      url: `https://dice.fm/search?q=${encoded}`,
+      available: true,
+    },
+  ].filter(
+    (marketplace) => marketplace.available && marketplace.url,
+  ) as Array<{
+    name: string;
+    url: string;
+    available: boolean;
+  }>;
+}
 
 export const Route = createFileRoute("/event/$eventId")({
   loader: ({ params }) => {
     const event = getEvent(params.eventId);
 
-    // Ticketmaster-backed events aren't in mock-data; the component loads
-    // them from Passr's /api/events/ticketmaster route on the client.
+    // Ticketmaster-backed events aren't in mock-data; the component
+    // loads them from Passr's /api/events/ticketmaster route.
     if (!event && !isTicketmasterId(params.eventId)) {
       throw notFound();
     }
@@ -78,7 +160,11 @@ export const Route = createFileRoute("/event/$eventId")({
     }
 
     const title = `${event.name} — real prices on Passr`;
-    const description = `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across four marketplaces from ${money(event.startingAt)}`;
+
+    const description =
+      event.startingAt !== undefined
+        ? `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across marketplaces from ${money(event.startingAt)}`
+        : `${event.date} at ${event.venue}, ${event.city}. Find and compare tickets on Passr.`;
 
     return {
       meta: [
@@ -102,7 +188,10 @@ function Shell({ children }: { children: React.ReactNode }) {
           aria-label="Back to search"
           className="grid h-10 w-10 place-items-center rounded-full border border-border"
         >
-          <ArrowLeft className="h-5 w-5" strokeWidth={2.2} />
+          <ArrowLeft
+            className="h-5 w-5"
+            strokeWidth={2.2}
+          />
         </Link>
       </div>
 
@@ -115,16 +204,22 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Resolves a mock event or a live Ticketmaster event, then renders the page. */
+/**
+ * Resolves a mock event or a live Ticketmaster event,
+ * then renders the event page.
+ */
 function EventRoute() {
   const { eventId } = Route.useParams();
 
   const mock = getEvent(eventId);
-  const isLive = !mock && isTicketmasterId(eventId);
+  const isLive =
+    !mock && isTicketmasterId(eventId);
 
   const query = useQuery({
     ...eventsQuery({
-      id: isLive ? toTicketmasterEventId(eventId) : undefined,
+      id: isLive
+        ? toTicketmasterEventId(eventId)
+        : undefined,
       size: 1,
     }),
     enabled: isLive,
@@ -138,7 +233,10 @@ function EventRoute() {
     return (
       <Shell>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+          <Loader2
+            className="h-4 w-4 animate-spin"
+            strokeWidth={2.4}
+          />
           Loading event…
         </p>
       </Shell>
@@ -159,7 +257,8 @@ function EventRoute() {
           </p>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            We couldn’t reach the ticket provider. Try again in a moment.
+            We couldn’t reach the ticket provider.
+            Try again in a moment.
           </p>
         </div>
       </Shell>
@@ -187,14 +286,32 @@ function EventRoute() {
   return <EventDetail event={event} />;
 }
 
-function EventDetail({ event }: { event: PassrEvent }) {
-  const anchorPrice = event.startingAt ?? FALLBACK_ANCHOR_PRICE;
+function EventDetail({
+  event,
+}: {
+  event: PassrEvent;
+}) {
+  const anchorPrice =
+    event.startingAt ?? FALLBACK_ANCHOR_PRICE;
 
   const watchlist = useWatchlist();
-  const saved = isSaved(watchlist, event.id);
+
+  const saved = isSaved(
+    watchlist,
+    event.id,
+  );
+
+  const marketplaceLinks = useMemo(
+    () => getMarketplaceLinks(event),
+    [event],
+  );
 
   const layout = useMemo(
-    () => getVenueLayout(event.venue, event.category),
+    () =>
+      getVenueLayout(
+        event.venue,
+        event.category,
+      ),
     [event.venue, event.category],
   );
 
@@ -206,49 +323,77 @@ function EventDetail({ event }: { event: PassrEvent }) {
         layout.zones,
         event.category !== "Theater",
       ),
-    [event.id, anchorPrice, layout.zones, event.category],
+    [
+      event.id,
+      anchorPrice,
+      layout.zones,
+      event.category,
+    ],
   );
 
   const available = useMemo(
     () =>
       [...inventory.values()]
         .filter((i) => !i.soldOut)
-        .sort((a, b) => a.from - b.from),
+        .sort(
+          (a, b) => a.from - b.from,
+        ),
     [inventory],
   );
 
   const [zoneId, setZoneId] = useState(
     () =>
-      [...inventory.values()]
+      [
+        ...inventory.values(),
+      ]
         .filter((i) => !i.soldOut)
-        .sort((a, b) => b.zone.tier - a.zone.tier)[2]?.zone.id ??
+        .sort(
+          (a, b) =>
+            b.zone.tier -
+            a.zone.tier,
+        )[2]?.zone.id ??
       available[0]?.zone.id ??
       layout.zones[0]!.id,
   );
 
-  const zone = inventory.get(zoneId) ?? available[0]!;
+  const zone =
+    inventory.get(zoneId) ??
+    available[0]!;
 
-  const [listingId, setListingId] = useState<string | null>(null);
+  const [listingId, setListingId] =
+    useState<string | null>(null);
 
   const listing =
-    zone.listings.find((l) => l.id === listingId) ?? zone.listings[0]!;
+    zone.listings.find(
+      (l) => l.id === listingId,
+    ) ??
+    zone.listings[0]!;
 
-  const [people, setPeople] = useState(2);
+  const [people, setPeople] =
+    useState(2);
 
   const quotes = useMemo(
-    () => quotesFor(listing.base),
+    () =>
+      quotesFor(listing.base),
     [listing.base],
   );
 
   const cheapest = quotes[0]!;
 
   const delta = Math.round(
-    ((cheapest.total - zone.avg30) / zone.avg30) * 100,
+    ((cheapest.total -
+      zone.avg30) /
+      zone.avg30) *
+      100,
   );
 
-  const below = cheapest.total < zone.avg30;
+  const below =
+    cheapest.total <
+    zone.avg30;
 
-  const selectZone = (id: string) => {
+  const selectZone = (
+    id: string,
+  ) => {
     setZoneId(id);
     setListingId(null);
   };
@@ -274,13 +419,23 @@ function EventDetail({ event }: { event: PassrEvent }) {
             aria-label="Back to search"
             className="grid h-10 w-10 place-items-center rounded-full bg-background/90"
           >
-            <ArrowLeft className="h-5 w-5" strokeWidth={2.2} />
+            <ArrowLeft
+              className="h-5 w-5"
+              strokeWidth={2.2}
+            />
           </Link>
 
           <button
-            onClick={() => toggleSaved(event, cheapest.total)}
+            onClick={() =>
+              toggleSaved(
+                event,
+                cheapest.total,
+              )
+            }
             aria-label={
-              saved ? "Remove from watchlist" : "Save to watchlist"
+              saved
+                ? "Remove from watchlist"
+                : "Save to watchlist"
             }
             className={`grid h-10 w-10 place-items-center rounded-full ${
               saved
@@ -289,7 +444,10 @@ function EventDetail({ event }: { event: PassrEvent }) {
             }`}
           >
             {saved ? (
-              <Bell className="h-5 w-5" strokeWidth={2.2} />
+              <Bell
+                className="h-5 w-5"
+                strokeWidth={2.2}
+              />
             ) : (
               <BellOff
                 className="h-5 w-5"
@@ -303,7 +461,9 @@ function EventDetail({ event }: { event: PassrEvent }) {
       <section className="bg-foreground px-6 pt-6 pb-8 text-background">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-background/60">
           {event.category}
-          {event.subtitle ? ` · ${event.subtitle}` : ""}
+          {event.subtitle
+            ? ` · ${event.subtitle}`
+            : ""}
         </p>
 
         <h1 className="mt-2 text-3xl font-bold leading-[1.1] tracking-tight">
@@ -311,9 +471,14 @@ function EventDetail({ event }: { event: PassrEvent }) {
         </h1>
 
         <p className="mt-3 text-sm text-background/70">
-          {event.date} · {event.venue}
-          {event.city ? `, ${event.city}` : ""}
-          {event.state ? `, ${event.state}` : ""}
+          {event.date} ·{" "}
+          {event.venue}
+          {event.city
+            ? `, ${event.city}`
+            : ""}
+          {event.state
+            ? `, ${event.state}`
+            : ""}
         </p>
 
         {event.ticketUrl && (
@@ -332,13 +497,60 @@ function EventDetail({ event }: { event: PassrEvent }) {
         )}
       </section>
 
+      {/* MULTI-MARKETPLACE LINKS */}
       <section className="px-6 pt-7">
+        <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          Find tickets
+        </h2>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          Search this event across major ticket sites.
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {marketplaceLinks.map(
+            (marketplace) => (
+              <a
+                key={marketplace.name}
+                href={marketplace.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-2 rounded-xl border border-border px-4 py-3.5 transition-colors hover:bg-accent-soft"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold">
+                    {marketplace.name}
+                  </span>
+
+                  <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Search tickets
+                  </span>
+                </span>
+
+                <ExternalLink
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  strokeWidth={2.2}
+                />
+              </a>
+            ),
+          )}
+        </div>
+
+        <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+          Passr links you to ticket marketplaces.
+          Availability and pricing are controlled
+          by each provider.
+        </p>
+      </section>
+
+      <section className="px-6 pt-8">
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
           {event.venue}
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Tap any section to see what's actually available there.
+          Tap any section to see what's actually
+          available there.
         </p>
 
         <div className="mt-3">
@@ -359,7 +571,8 @@ function EventDetail({ event }: { event: PassrEvent }) {
 
               <p className="text-xs text-muted-foreground">
                 {zone.listings.length}{" "}
-                {zone.listings.length === 1
+                {zone.listings.length ===
+                1
                   ? "listing"
                   : "listings"}{" "}
                 · {zone.seats} tickets
@@ -367,74 +580,103 @@ function EventDetail({ event }: { event: PassrEvent }) {
             </div>
 
             <p className="price shrink-0 text-sm font-bold text-primary">
-              from {money(zone.from)}
+              from{" "}
+              {money(zone.from)}
             </p>
           </div>
 
           <ul className="divide-y divide-border">
-            {zone.listings.map((l) => {
-              const active = l.id === listing.id;
+            {zone.listings.map(
+              (l) => {
+                const active =
+                  l.id === listing.id;
 
-              return (
-                <li key={l.id}>
-                  <button
-                    onClick={() => setListingId(l.id)}
-                    aria-pressed={active}
-                    className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
-                      active ? "bg-accent-soft" : ""
-                    }`}
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <Ticket
-                        className={`h-4 w-4 shrink-0 ${
-                          active
-                            ? "text-primary"
-                            : "text-muted-foreground"
-                        }`}
-                        strokeWidth={2.2}
-                      />
+                return (
+                  <li key={l.id}>
+                    <button
+                      onClick={() =>
+                        setListingId(
+                          l.id,
+                        )
+                      }
+                      aria-pressed={
+                        active
+                      }
+                      className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
+                        active
+                          ? "bg-accent-soft"
+                          : ""
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <Ticket
+                          className={`h-4 w-4 shrink-0 ${
+                            active
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                          }`}
+                          strokeWidth={
+                            2.2
+                          }
+                        />
 
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold">
-                          {zone.zone.standing
-                            ? "General admission"
-                            : `Row ${l.row}`}
-                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold">
+                            {zone
+                              .zone
+                              .standing
+                              ? "General admission"
+                              : `Row ${l.row}`}
+                          </span>
 
-                        <span className="block text-xs text-muted-foreground">
-                          {l.qty}{" "}
-                          {l.qty === 1
-                            ? "ticket"
-                            : "tickets"}{" "}
-                          together
+                          <span className="block text-xs text-muted-foreground">
+                            {l.qty}{" "}
+                            {l.qty ===
+                            1
+                              ? "ticket"
+                              : "tickets"}{" "}
+                            together
+                          </span>
                         </span>
                       </span>
-                    </span>
 
-                    <span className="price shrink-0 text-lg font-bold">
-                      {money(l.base)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+                      <span className="price shrink-0 text-lg font-bold">
+                        {money(
+                          l.base,
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              },
+            )}
           </ul>
         </div>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {available.slice(0, 8).map((i) => (
-            <button
-              key={i.zone.id}
-              onClick={() => selectZone(i.zone.id)}
-              className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-bold ${
-                i.zone.id === zone.zone.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border"
-              }`}
-            >
-              {i.zone.name} · {money(i.from)}
-            </button>
-          ))}
+          {available
+            .slice(0, 8)
+            .map((i) => (
+              <button
+                key={
+                  i.zone.id
+                }
+                onClick={() =>
+                  selectZone(
+                    i.zone.id,
+                  )
+                }
+                className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-bold ${
+                  i.zone.id ===
+                  zone.zone.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border"
+                }`}
+              >
+                {i.zone.name} ·{" "}
+                {money(i.from)}
+              </button>
+            ))}
         </div>
       </section>
 
@@ -448,47 +690,72 @@ function EventDetail({ event }: { event: PassrEvent }) {
         </p>
 
         <ul className="mt-4 space-y-2">
-          {quotes.map((qt, i) => {
-            const best = i === 0;
+          {quotes.map(
+            (qt, i) => {
+              const best =
+                i === 0;
 
-            return (
-              <li
-                key={qt.marketplace}
-                className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border px-4 py-4 ${
-                  best
-                    ? "border-primary bg-accent-soft"
-                    : "border-border"
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-base font-bold">
-                    {qt.marketplace}
-                  </p>
-
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {money(qt.base)} + {money(qt.fees)} fees
-                  </p>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <p
-                    className={`price text-2xl font-bold ${
-                      best ? "text-primary" : ""
-                    }`}
-                  >
-                    {money(qt.total)}
-                  </p>
-
-                  {best && (
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
-                      Cheapest
+              return (
+                <li
+                  key={
+                    qt.marketplace
+                  }
+                  className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border px-4 py-4 ${
+                    best
+                      ? "border-primary bg-accent-soft"
+                      : "border-border"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-bold">
+                      {
+                        qt.marketplace
+                      }
                     </p>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {money(
+                        qt.base,
+                      )}{" "}
+                      +{" "}
+                      {money(
+                        qt.fees,
+                      )}{" "}
+                      fees
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <p
+                      className={`price text-2xl font-bold ${
+                        best
+                          ? "text-primary"
+                          : ""
+                      }`}
+                    >
+                      {money(
+                        qt.total,
+                      )}
+                    </p>
+
+                    {best && (
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
+                        Cheapest
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            },
+          )}
         </ul>
+
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Marketplace prices shown here are
+          currently Passr's comparison layer.
+          Direct provider inventory will replace
+          simulated quotes as integrations are added.
+        </p>
       </section>
 
       <section className="mx-6 mt-8 rounded-2xl border border-border p-6">
@@ -497,7 +764,9 @@ function EventDetail({ event }: { event: PassrEvent }) {
         </h2>
 
         <p className="price mt-3 text-6xl font-bold leading-none">
-          {money(zone.avg30)}
+          {money(
+            zone.avg30,
+          )}
         </p>
 
         <p className="mt-3 text-sm text-muted-foreground">
@@ -513,8 +782,12 @@ function EventDetail({ event }: { event: PassrEvent }) {
           }`}
         >
           {below
-            ? `${Math.abs(delta)}% below average · good deal`
-            : `${Math.abs(delta)}% above average`}
+            ? `${Math.abs(
+                delta,
+              )}% below average · good deal`
+            : `${Math.abs(
+                delta,
+              )}% above average`}
         </span>
       </section>
 
@@ -529,13 +802,16 @@ function EventDetail({ event }: { event: PassrEvent }) {
             Listing check passed.
           </span>{" "}
           <span className="text-muted-foreground">
-            Seller history, price movement, and delivery method
-            all match normal patterns for this venue. Nothing
-            looks off.
+            Seller history, price movement,
+            and delivery method all match
+            normal patterns for this venue.
+            Nothing looks off.
           </span>
         </p>
       </section>
 
+      {/* TEMPORARY GROUP CALCULATOR
+          We'll replace this with Passr Groups next. */}
       <section className="mx-6 mt-4 rounded-2xl bg-foreground p-6 text-background">
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-background/60">
           Splitting with friends?
@@ -545,14 +821,24 @@ function EventDetail({ event }: { event: PassrEvent }) {
           <div className="flex items-center gap-4">
             <Stepper
               label="Remove one person"
-              disabled={people <= 1}
+              disabled={
+                people <= 1
+              }
               onClick={() =>
-                setPeople((p) => Math.max(1, p - 1))
+                setPeople(
+                  (p) =>
+                    Math.max(
+                      1,
+                      p - 1,
+                    ),
+                )
               }
             >
               <Minus
                 className="h-5 w-5"
-                strokeWidth={2.4}
+                strokeWidth={
+                  2.4
+                }
               />
             </Stepper>
 
@@ -562,14 +848,24 @@ function EventDetail({ event }: { event: PassrEvent }) {
 
             <Stepper
               label="Add one person"
-              disabled={people >= 10}
+              disabled={
+                people >= 10
+              }
               onClick={() =>
-                setPeople((p) => Math.min(10, p + 1))
+                setPeople(
+                  (p) =>
+                    Math.min(
+                      10,
+                      p + 1,
+                    ),
+                )
               }
             >
               <Plus
                 className="h-5 w-5"
-                strokeWidth={2.4}
+                strokeWidth={
+                  2.4
+                }
               />
             </Stepper>
           </div>
@@ -580,17 +876,28 @@ function EventDetail({ event }: { event: PassrEvent }) {
             </p>
 
             <p className="price text-4xl font-bold leading-none">
-              {money(cheapest.total)}
+              {money(
+                cheapest.total,
+              )}
             </p>
           </div>
         </div>
 
         <p className="mt-5 text-sm text-background/70">
           {people}{" "}
-          {people === 1 ? "ticket" : "tickets"} on{" "}
-          {cheapest.marketplace} ·{" "}
+          {people === 1
+            ? "ticket"
+            : "tickets"}{" "}
+          on{" "}
+          {
+            cheapest.marketplace
+          }{" "}
+          ·{" "}
           <span className="font-bold text-background">
-            {money(cheapest.total * people)}
+            {money(
+              cheapest.total *
+                people,
+            )}
           </span>{" "}
           total, fees included.
         </p>
@@ -635,3 +942,4 @@ function Stepper({
     </button>
   );
 }
+```
