@@ -177,6 +177,7 @@ export async function fetchTicketmasterEvents(
 function buildRequestUrl(params: TicketmasterSearchParams, apiKey: string): string {
   const url = new URL(TICKETMASTER_EVENTS_ENDPOINT);
   url.searchParams.set("apikey", apiKey);
+  if (params.id) url.searchParams.set("id", params.id);
   if (params.city) url.searchParams.set("city", params.city);
   if (params.stateCode) url.searchParams.set("stateCode", params.stateCode);
   if (params.countryCode) url.searchParams.set("countryCode", params.countryCode);
