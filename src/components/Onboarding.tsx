@@ -1,8 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, Eye, Receipt, Search, ShieldCheck, Sparkles, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  Eye,
+  Receipt,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import logo from "@/assets/passr-logo.png.asset.json";
-import { getProfile, saveProfile } from "@/lib/profile";
-import { taxonomy, labelFor, type TaxonomyCategory, type TaxonomyNode } from "@/lib/taxonomy";
+import {
+  getProfile,
+  saveProfile,
+  syncProfileToSupabase,
+  type PassrProfile,
+} from "@/lib/profile";
+import { useAuth } from "@/lib/auth";
+import {
+  taxonomy,
+  labelFor,
+  type TaxonomyCategory,
+  type TaxonomyNode,
+} from "@/lib/taxonomy";
 import {
   budgetOptions,
   emptyPreferences,
@@ -59,6 +80,8 @@ type Step =
   | { kind: "tour"; index: number };
 
 export function Onboarding({ onDone }: { onDone?: () => void }) {
+  const { user, sendMagicLink } = useAuth();
+
   const [open, setOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [name, setName] = useState("");
@@ -73,7 +96,11 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
   }, []);
 
   const steps: Step[] = useMemo(() => {
-    const drills: Step[] = prefs.categories.map((categoryId) => ({ kind: "drill", categoryId }));
+    const drills: Step[] = prefs.categories.map((categoryId) => ({
+      kind: "drill",
+      categoryId,
+    }));
+
     return [
       { kind: "signup" },
       { kind: "categories" },
@@ -91,28 +118,56 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
 
   if (!open) return null;
 
-  const finish = () => {
-    saveProfile({
+  const finish = async () => {
+    const profile: PassrProfile = {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim() || undefined,
       answers: toLegacyAnswers(prefs),
       preferences: prefs,
       completedAt: new Date().toISOString(),
-    });
+    };
+
+    // Keep the existing local cache.
+    saveProfile(profile);
+
+    // If the user isn't authenticated yet, send a magic link.
+    if (!user && profile.email) {
+      const { error } = await sendMagicLink(profile.email);
+
+      if (error) {
+        console.error("[Passr] Failed to send magic link:", error);
+      }
+    }
+
+    // If already authenticated, immediately sync to Supabase.
+    if (user) {
+      await syncProfileToSupabase(user.id);
+    }
+
     setOpen(false);
     onDone?.();
   };
 
   const next = () => {
-    if (stepIndex >= steps.length - 1) finish();
-    else setStepIndex(stepIndex + 1);
+    if (stepIndex >= steps.length - 1) {
+      void finish();
+    } else {
+      setStepIndex(stepIndex + 1);
+    }
   };
+
   const back = () => setStepIndex(Math.max(0, stepIndex - 1));
 
   const submitSignup = () => {
-    if (!name.trim()) return setError("we just need a first name");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("that email looks off");
+    if (!name.trim()) {
+      return setError("we just need a first name");
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return setError("that email looks off");
+    }
+
     setError("");
     next();
   };
@@ -138,15 +193,21 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
     }));
 
   const toggleExpanded = (id: string) =>
-    setExpanded((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id]));
+    setExpanded((e) =>
+      e.includes(id) ? e.filter((x) => x !== id) : [...e, id],
+    );
 
   const toggleVibe = (id: EventVibe) =>
     setPrefs((p) => ({
       ...p,
-      vibes: p.vibes.includes(id) ? p.vibes.filter((v) => v !== id) : [...p.vibes, id],
+      vibes: p.vibes.includes(id)
+        ? p.vibes.filter((v) => v !== id)
+        : [...p.vibes, id],
     }));
 
-  const canContinue = step.kind === "categories" ? prefs.categories.length > 0 : true;
+  const canContinue =
+    step.kind === "categories" ? prefs.categories.length > 0 : true;
+
   const skippable =
     step.kind === "drill" ||
     step.kind === "budget" ||
@@ -164,7 +225,13 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
             <ArrowLeft className="h-5 w-5 text-background/70" />
           </button>
         )}
-        <img src={logo.url} alt="Passr" className="h-14 w-14 object-contain" />
+
+        <img
+          src={logo.url}
+          alt="Passr"
+          className="h-14 w-14 object-contain"
+        />
+
         <span className="h-9 w-9" />
       </div>
 
@@ -173,13 +240,20 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
           <h1 className="text-4xl leading-[1.05] font-bold lowercase tracking-tight">
             let's get you the real price
           </h1>
+
           <p className="mt-4 text-base leading-relaxed text-background/70">
-            Tell us where to reach you and we'll message you when prices drop on artists, teams and
-            shows you care about.
+            Tell us where to reach you and we'll message you when prices drop
+            on artists, teams and shows you care about.
           </p>
 
           <div className="mt-8 space-y-3">
-            <Field label="First name" value={name} onChange={setName} placeholder="Alex" />
+            <Field
+              label="First name"
+              value={name}
+              onChange={setName}
+              placeholder="Alex"
+            />
+
             <Field
               label="Email"
               value={email}
@@ -187,6 +261,7 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
               placeholder="you@email.com"
               type="email"
             />
+
             <Field
               label="Phone (optional)"
               value={phone}
@@ -195,16 +270,21 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
               type="tel"
             />
           </div>
-          {error && <p className="mt-3 text-sm text-background/80">{error}</p>}
+
+          {error && (
+            <p className="mt-3 text-sm text-background/80">{error}</p>
+          )}
         </div>
       )}
 
       {step.kind === "categories" && (
         <div className="mt-8 animate-in fade-in duration-300">
           <Eyebrow>Step 1 · your taste</Eyebrow>
+
           <h1 className="mt-3 text-3xl leading-[1.1] font-bold lowercase tracking-tight">
             what do you go out for?
           </h1>
+
           <p className="mt-2 text-sm text-background/60">
             Pick as many as you like — we'll get specific next.
           </p>
@@ -239,7 +319,12 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
           hint="Out-the-door, fees included."
           options={budgetOptions}
           selected={prefs.budget ? [prefs.budget] : []}
-          onSelect={(id) => setPrefs((p) => ({ ...p, budget: id as EventPreferences["budget"] }))}
+          onSelect={(id) =>
+            setPrefs((p) => ({
+              ...p,
+              budget: id as EventPreferences["budget"],
+            }))
+          }
         />
       )}
 
@@ -249,7 +334,12 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
           title="how far will you travel?"
           options={travelOptions}
           selected={prefs.travel ? [prefs.travel] : []}
-          onSelect={(id) => setPrefs((p) => ({ ...p, travel: id as EventPreferences["travel"] }))}
+          onSelect={(id) =>
+            setPrefs((p) => ({
+              ...p,
+              travel: id as EventPreferences["travel"],
+            }))
+          }
         />
       )}
 
@@ -259,7 +349,12 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
           title="when are you looking to go?"
           options={horizonOptions}
           selected={prefs.horizon ? [prefs.horizon] : []}
-          onSelect={(id) => setPrefs((p) => ({ ...p, horizon: id as EventPreferences["horizon"] }))}
+          onSelect={(id) =>
+            setPrefs((p) => ({
+              ...p,
+              horizon: id as EventPreferences["horizon"],
+            }))
+          }
         />
       )}
 
@@ -274,20 +369,31 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
         />
       )}
 
-      {step.kind === "review" && <ReviewStep prefs={prefs} name={name} />}
+      {step.kind === "review" && (
+        <ReviewStep prefs={prefs} name={name} />
+      )}
 
       {step.kind === "tour" && (
         <div className="mt-auto animate-in fade-in duration-300">
           <Eyebrow>How Passr works</Eyebrow>
+
           {(() => {
             const { icon: Icon, title, body } = tourSteps[step.index]!;
+
             return (
               <>
-                <Icon className="mt-6 h-9 w-9 text-background" strokeWidth={1.6} />
+                <Icon
+                  className="mt-6 h-9 w-9 text-background"
+                  strokeWidth={1.6}
+                />
+
                 <h1 className="mt-6 text-4xl leading-[1.05] font-bold lowercase tracking-tight">
                   {title}
                 </h1>
-                <p className="mt-4 text-base leading-relaxed text-background/70">{body}</p>
+
+                <p className="mt-4 text-base leading-relaxed text-background/70">
+                  {body}
+                </p>
               </>
             );
           })()}
@@ -300,7 +406,9 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
             <span
               key={i}
               className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                i <= stepIndex ? "bg-background" : "bg-background/20"
+                i <= stepIndex
+                  ? "bg-background"
+                  : "bg-background/20"
               }`}
             />
           ))}
@@ -337,7 +445,9 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-bold uppercase tracking-[0.16em] text-background/50">{children}</p>
+    <p className="text-xs font-bold uppercase tracking-[0.16em] text-background/50">
+      {children}
+    </p>
   );
 }
 
@@ -355,12 +465,22 @@ function CategoryCard({
       onClick={onClick}
       aria-pressed={on}
       className={`rounded-2xl border p-3.5 text-left transition-all active:scale-[0.98] ${
-        on ? "border-background bg-background text-brand" : "border-background/25 text-background"
+        on
+          ? "border-background bg-background text-brand"
+          : "border-background/25 text-background"
       }`}
     >
       <span className="text-xl leading-none">{category.emoji}</span>
-      <span className="mt-2 block text-sm font-bold leading-tight">{category.label}</span>
-      <span className={`mt-1 block text-[11px] leading-snug ${on ? "text-brand/60" : "text-background/45"}`}>
+
+      <span className="mt-2 block text-sm font-bold leading-tight">
+        {category.label}
+      </span>
+
+      <span
+        className={`mt-1 block text-[11px] leading-snug ${
+          on ? "text-brand/60" : "text-background/45"
+        }`}
+      >
         {category.blurb}
       </span>
     </button>
@@ -383,13 +503,23 @@ function Chip({
       onClick={onClick}
       aria-pressed={on}
       className={`inline-flex items-center gap-1.5 rounded-full border transition-all active:scale-[0.97] ${
-        small ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
+        small
+          ? "px-3 py-1.5 text-xs"
+          : "px-4 py-2 text-sm"
       } font-semibold ${
-        on ? "border-background bg-background text-brand" : "border-background/25 text-background/90"
+        on
+          ? "border-background bg-background text-brand"
+          : "border-background/25 text-background/90"
       }`}
     >
       {label}
-      {on && <Check className="h-3 w-3" strokeWidth={3} />}
+
+      {on && (
+        <Check
+          className="h-3 w-3"
+          strokeWidth={3}
+        />
+      )}
     </button>
   );
 }
@@ -408,18 +538,31 @@ function DrillStep({
   onToggleExpanded: (id: string) => void;
 }) {
   const category = taxonomy.find((c) => c.id === categoryId);
+
   if (!category) return null;
+
   const single = category.children.length === 1;
-  const groups: TaxonomyNode[] = single ? category.children[0]!.children : category.children;
+
+  const groups: TaxonomyNode[] = single
+    ? category.children[0]!.children
+    : category.children;
 
   return (
     <div className="mt-8 animate-in fade-in duration-300">
-      <Eyebrow>{category.emoji} {category.label}</Eyebrow>
+      <Eyebrow>
+        {category.emoji} {category.label}
+      </Eyebrow>
+
       <h1 className="mt-3 text-3xl leading-[1.1] font-bold lowercase tracking-tight">
-        {single ? "what should we watch for?" : `what kind of ${category.label.toLowerCase()}?`}
+        {single
+          ? "what should we watch for?"
+          : `what kind of ${category.label.toLowerCase()}?`}
       </h1>
+
       <p className="mt-2 text-sm text-background/60">
-        {single ? "Tap anything that fits." : "Tap a group to see the specifics."}
+        {single
+          ? "Tap anything that fits."
+          : "Tap a group to see the specifics."}
       </p>
 
       {single ? (
@@ -437,27 +580,42 @@ function DrillStep({
         <div className="mt-6 space-y-2">
           {groups.map((group) => {
             const isOpen = expanded.includes(group.id);
-            const picked = interests.filter((i) => i.startsWith(`${group.id}.`)).length;
+
+            const picked = interests.filter((i) =>
+              i.startsWith(`${group.id}.`)
+            ).length;
+
             const groupOn = interests.includes(group.id);
+
             return (
-              <div key={group.id} className="rounded-2xl border border-background/20">
+              <div
+                key={group.id}
+                className="rounded-2xl border border-background/20"
+              >
                 <button
                   onClick={() => onToggleExpanded(group.id)}
                   aria-expanded={isOpen}
                   className="flex w-full items-center justify-between px-4 py-3 text-left"
                 >
-                  <span className="text-base font-bold">{group.label}</span>
+                  <span className="text-base font-bold">
+                    {group.label}
+                  </span>
+
                   <span className="flex items-center gap-2">
                     {picked > 0 && (
                       <span className="rounded-full bg-background px-2 py-0.5 text-[11px] font-bold text-brand">
                         {picked}
                       </span>
                     )}
+
                     <ChevronDown
-                      className={`h-4 w-4 text-background/60 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      className={`h-4 w-4 text-background/60 transition-transform ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
                     />
                   </span>
                 </button>
+
                 {isOpen && (
                   <div className="animate-in fade-in slide-in-from-top-1 space-y-2 px-4 pb-4 duration-200">
                     <div className="flex flex-wrap gap-2">
@@ -465,29 +623,44 @@ function DrillStep({
                         small
                         label={`All ${group.label}`}
                         on={groupOn}
-                        onClick={() => onToggleInterest(group.id)}
+                        onClick={() =>
+                          onToggleInterest(group.id)
+                        }
                       />
+
                       {group.children.map((option) => (
                         <Chip
                           key={option.id}
                           small
                           label={option.label}
                           on={interests.includes(option.id)}
-                          onClick={() => onToggleInterest(option.id)}
+                          onClick={() =>
+                            onToggleInterest(option.id)
+                          }
                         />
                       ))}
                     </div>
+
                     {group.children
-                      .filter((o) => o.children.length > 0 && interests.includes(o.id))
+                      .filter(
+                        (o) =>
+                          o.children.length > 0 &&
+                          interests.includes(o.id),
+                      )
                       .map((o) => (
-                        <div key={`${o.id}-sub`} className="flex flex-wrap gap-2 pl-1">
+                        <div
+                          key={`${o.id}-sub`}
+                          className="flex flex-wrap gap-2 pl-1"
+                        >
                           {o.children.map((sub) => (
                             <Chip
                               key={sub.id}
                               small
                               label={sub.label}
                               on={interests.includes(sub.id)}
-                              onClick={() => onToggleInterest(sub.id)}
+                              onClick={() =>
+                                onToggleInterest(sub.id)
+                              }
                             />
                           ))}
                         </div>
@@ -521,22 +694,40 @@ function ChoiceStep({
   return (
     <div className="mt-8 animate-in fade-in duration-300">
       <Eyebrow>{eyebrow}</Eyebrow>
-      <h1 className="mt-3 text-3xl leading-[1.1] font-bold lowercase tracking-tight">{title}</h1>
-      {hint && <p className="mt-2 text-sm text-background/60">{hint}</p>}
+
+      <h1 className="mt-3 text-3xl leading-[1.1] font-bold lowercase tracking-tight">
+        {title}
+      </h1>
+
+      {hint && (
+        <p className="mt-2 text-sm text-background/60">
+          {hint}
+        </p>
+      )}
+
       <div className="mt-6 space-y-2.5">
         {options.map((o) => {
           const on = selected.includes(o.id);
+
           return (
             <button
               key={o.id}
               onClick={() => onSelect(o.id)}
               aria-pressed={on}
               className={`flex w-full items-center justify-between rounded-2xl border px-5 py-4 text-left text-base font-semibold transition-all active:scale-[0.99] ${
-                on ? "border-background bg-background text-brand" : "border-background/25 text-background"
+                on
+                  ? "border-background bg-background text-brand"
+                  : "border-background/25 text-background"
               }`}
             >
               {o.label}
-              {on && <Check className="h-4 w-4" strokeWidth={3} />}
+
+              {on && (
+                <Check
+                  className="h-4 w-4"
+                  strokeWidth={3}
+                />
+              )}
             </button>
           );
         })}
@@ -545,29 +736,48 @@ function ChoiceStep({
   );
 }
 
-function ReviewStep({ prefs, name }: { prefs: EventPreferences; name: string }) {
+function ReviewStep({
+  prefs,
+  name,
+}: {
+  prefs: EventPreferences;
+  name: string;
+}) {
   const grouped = interestsByCategory(prefs);
+
   return (
     <div className="mt-8 animate-in fade-in duration-300">
       <Eyebrow>
         <span className="inline-flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" /> Your taste profile
+          <Sparkles className="h-3.5 w-3.5" />
+          Your taste profile
         </span>
       </Eyebrow>
+
       <h1 className="mt-3 text-3xl leading-[1.1] font-bold lowercase tracking-tight">
-        here's what passr knows{name.trim() ? ` about ${name.trim().toLowerCase()}` : " about your taste"}
+        here's what passr knows
+        {name.trim()
+          ? ` about ${name.trim().toLowerCase()}`
+          : " about your taste"}
       </h1>
 
       <div className="mt-6 space-y-3">
         {prefs.categories.map((catId) => {
           const picks = grouped.get(catId) ?? [];
+
           return (
-            <div key={catId} className="rounded-2xl border border-background/20 px-4 py-3">
+            <div
+              key={catId}
+              className="rounded-2xl border border-background/20 px-4 py-3"
+            >
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-background/50">
                 {labelFor(catId)}
               </p>
+
               <p className="mt-1 text-sm font-semibold leading-snug">
-                {picks.length ? picks.map(labelFor).join(" · ") : "Everything in this category"}
+                {picks.length
+                  ? picks.map(labelFor).join(" · ")
+                  : "Everything in this category"}
               </p>
             </div>
           );
@@ -577,6 +787,7 @@ function ReviewStep({ prefs, name }: { prefs: EventPreferences; name: string }) 
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-background/50">
             How you buy
           </p>
+
           <p className="mt-1 text-sm font-semibold leading-snug">
             {[
               labelForBudget(prefs.budget),
@@ -585,13 +796,15 @@ function ReviewStep({ prefs, name }: { prefs: EventPreferences; name: string }) 
               ...prefs.vibes.map(labelForVibe),
             ]
               .filter(Boolean)
-              .join(" · ") || "No preference yet — we'll learn as you browse."}
+              .join(" · ") ||
+              "No preference yet — we'll learn as you browse."}
           </p>
         </div>
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-background/50">
-        You can change any of this later. Passr uses it only to rank what shows up in your feed.
+        You can change any of this later. Passr uses it only to rank what
+        shows up in your feed.
       </p>
     </div>
   );
@@ -615,6 +828,7 @@ function Field({
       <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-background/50">
         {label}
       </span>
+
       <input
         type={type}
         value={value}
