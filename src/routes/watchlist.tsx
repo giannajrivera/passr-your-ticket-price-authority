@@ -11,15 +11,21 @@ export const Route = createFileRoute("/watchlist")({
       { title: "Watchlist — Passr price alerts" },
       {
         name: "description",
-        content: "Track saved events, see how the cheapest price has moved, and get alerted on drops.",
+        content:
+          "Track saved events, see how the cheapest price has moved, and get alerted on drops.",
       },
-      { property: "og:title", content: "Watchlist — Passr price alerts" },
+      {
+        property: "og:title",
+        content: "Watchlist — Passr price alerts",
+      },
       {
         property: "og:description",
-        content: "Track saved events and get alerted when resale prices drop.",
+        content:
+          "Track saved events and get alerted when resale prices drop.",
       },
     ],
   }),
+
   component: Watchlist,
 });
 
@@ -29,7 +35,10 @@ function Watchlist() {
   return (
     <main className="mx-auto min-h-screen max-w-md bg-background pb-24">
       <header className="bg-foreground px-6 pt-10 pb-8 text-background">
-        <h1 className="text-3xl font-bold lowercase tracking-tight">watchlist</h1>
+        <h1 className="text-3xl font-bold lowercase tracking-tight">
+          watchlist
+        </h1>
+
         <p className="mt-2 text-sm text-background/70">
           Prices below are out-the-door, fees included.
         </p>
@@ -43,55 +52,134 @@ function Watchlist() {
         )}
 
         {items.map((item) => {
-          const event = getEvent(item.eventId);
+          /*
+           * New saved events contain their own event snapshot.
+           * Older/mock saved items may not, so we keep the mock-data fallback
+           * temporarily while we transition away from mock data.
+           */
+          const savedEvent = item.event;
+          const legacyEvent = savedEvent
+            ? null
+            : getEvent(item.eventId);
+
+          const event = savedEvent ?? legacyEvent;
+
           if (!event) return null;
+
           const diff = item.currentPrice - item.savedPrice;
           const down = diff < 0;
-          const pct = Math.abs(Math.round((diff / item.savedPrice) * 100));
+          const pct =
+            item.savedPrice > 0
+              ? Math.abs(
+                  Math.round(
+                    (diff / item.savedPrice) * 100,
+                  ),
+                )
+              : 0;
 
           return (
-            <article key={item.eventId} className="rounded-2xl border border-border p-5">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                <Link to="/event/$eventId" params={{ eventId: event.id }} className="min-w-0">
-                  <h2 className="truncate text-lg font-bold leading-tight">{event.name}</h2>
-                  <p className="mt-1 truncate text-sm text-muted-foreground">
-                    {event.date} · {event.venue}
-                  </p>
+            <article
+              key={item.eventId}
+              className="overflow-hidden rounded-2xl border border-border"
+            >
+              {event.image && (
+                <Link
+                  to="/event/$eventId"
+                  params={{ eventId: event.id }}
+                  className="block"
+                >
+                  <img
+                    src={event.image}
+                    alt={event.name}
+                    width={1024}
+                    height={640}
+                    loading="lazy"
+                    className="h-28 w-full object-cover"
+                  />
                 </Link>
-                <div className="shrink-0 text-right">
-                  <p className="price text-2xl font-bold">{money(item.currentPrice)}</p>
-                  <span
-                    className={`mt-1 inline-flex items-center gap-1 text-xs font-bold ${
-                      down ? "text-success" : "text-primary"
+              )}
+
+              <div className="p-5">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                  <Link
+                    to="/event/$eventId"
+                    params={{ eventId: event.id }}
+                    className="min-w-0"
+                  >
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+                      {event.category}
+                    </p>
+
+                    <h2 className="mt-1 truncate text-lg font-bold leading-tight">
+                      {event.name}
+                    </h2>
+
+                    <p className="mt-1 truncate text-sm text-muted-foreground">
+                      {event.date} · {event.venue}
+                    </p>
+
+                    {event.city && (
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                        {event.city}
+                        {event.state ? `, ${event.state}` : ""}
+                      </p>
+                    )}
+                  </Link>
+
+                  <div className="shrink-0 text-right">
+                    <p className="price text-2xl font-bold">
+                      {money(item.currentPrice)}
+                    </p>
+
+                    <span
+                      className={`mt-1 inline-flex items-center gap-1 text-xs font-bold ${
+                        down
+                          ? "text-success"
+                          : "text-primary"
+                      }`}
+                    >
+                      {down ? (
+                        <ArrowDownRight
+                          className="h-3.5 w-3.5"
+                          strokeWidth={3}
+                        />
+                      ) : (
+                        <ArrowUpRight
+                          className="h-3.5 w-3.5"
+                          strokeWidth={3}
+                        />
+                      )}
+
+                      {pct}% since saved
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                  <span className="text-sm font-semibold">
+                    Notify me if price drops
+                  </span>
+
+                  <button
+                    role="switch"
+                    aria-checked={item.notify}
+                    aria-label="Notify me if price drops"
+                    onClick={() => toggleNotify(item.eventId)}
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                      item.notify
+                        ? "bg-primary"
+                        : "bg-muted"
                     }`}
                   >
-                    {down ? (
-                      <ArrowDownRight className="h-3.5 w-3.5" strokeWidth={3} />
-                    ) : (
-                      <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={3} />
-                    )}
-                    {pct}% since saved
-                  </span>
+                    <span
+                      className={`absolute top-1 h-5 w-5 rounded-full bg-background transition-all ${
+                        item.notify
+                          ? "left-6"
+                          : "left-1"
+                      }`}
+                    />
+                  </button>
                 </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-                <span className="text-sm font-semibold">Notify me if price drops</span>
-                <button
-                  role="switch"
-                  aria-checked={item.notify}
-                  aria-label="Notify me if price drops"
-                  onClick={() => toggleNotify(item.eventId)}
-                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-                    item.notify ? "bg-primary" : "bg-muted"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 h-5 w-5 rounded-full bg-background transition-all ${
-                      item.notify ? "left-6" : "left-1"
-                    }`}
-                  />
-                </button>
               </div>
             </article>
           );
