@@ -1,7 +1,22 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Bell, BellOff, Check, Minus, Plus, ShieldCheck, Ticket } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  BellOff,
+  Check,
+  ExternalLink,
+  Loader2,
+  Minus,
+  Plus,
+  ShieldCheck,
+  Ticket,
+} from "lucide-react";
 import { getEvent, money, quotesFor } from "@/lib/mock-data";
+import { eventsQuery, isTicketmasterId, toTicketmasterEventId } from "@/lib/events-client";
+import type { PassrEvent } from "@/lib/types";
 import { getVenueLayout } from "@/lib/venue-maps";
 import { venueInventory } from "@/lib/venue-listings";
 import { BottomNav } from "@/components/BottomNav";
@@ -9,18 +24,40 @@ import { VenueMap } from "@/components/VenueMap";
 import { AffiliateNote } from "@/components/AffiliateNote";
 import { isSaved, toggleSaved, useWatchlist } from "@/lib/watchlist";
 
+/**
+ * Passr's own market layer (section inventory, marketplace quotes, 30-day
+ * averages) is still simulated and needs a numeric anchor price. Real
+ * Ticketmaster events often ship with no price at all — in that case we
+ * anchor the simulation on this constant instead of pretending Ticketmaster
+ * gave us a price.
+ */
+const FALLBACK_ANCHOR_PRICE = 75;
 
 export const Route = createFileRoute("/event/$eventId")({
   loader: ({ params }) => {
     const event = getEvent(params.eventId);
-    if (!event) throw notFound();
-    return { event };
+    // Ticketmaster-backed events aren't in mock-data; the component loads
+    // them from Passr's /api/events/ticketmaster route on the client.
+    if (!event && !isTicketmasterId(params.eventId)) throw notFound();
+    return { event: event ?? null };
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
       return { meta: [{ title: "Event unavailable — Passr" }, { name: "robots", content: "noindex" }] };
     }
     const { event } = loaderData;
+    if (!event) {
+      const title = "Event prices — Passr";
+      const description = "Real out-the-door ticket prices, fees included, on Passr.";
+      return {
+        meta: [
+          { title },
+          { name: "description", content: description },
+          { property: "og:title", content: title },
+          { property: "og:description", content: description },
+        ],
+      };
+    }
     const title = `${event.name} — real prices on Passr`;
     const description = `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across four marketplaces from ${money(event.startingAt)}.`;
     return {
@@ -32,12 +69,84 @@ export const Route = createFileRoute("/event/$eventId")({
       ],
     };
   },
-  component: EventDetail,
+  component: EventRoute,
 });
 
-function EventDetail() {
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col bg-background pb-28">
+      <div className="flex items-center gap-3 px-6 pt-6">
+        <Link
+          to="/"
+          aria-label="Back to search"
+          className="grid h-10 w-10 place-items-center rounded-full border border-border"
+        >
+          <ArrowLeft className="h-5 w-5" strokeWidth={2.2} />
+        </Link>
+      </div>
+      <div className="flex flex-1 items-center justify-center px-6 py-24 text-center">{children}</div>
+      <BottomNav />
+    </main>
+  );
+}
+
+/** Resolves a mock event or a live Ticketmaster event, then renders the page. */
+function EventRoute() {
   const { eventId } = Route.useParams();
-  const event = getEvent(eventId)!;
+  const mock = getEvent(eventId);
+  const isLive = !mock && isTicketmasterId(eventId);
+
+  const query = useQuery({
+    ...eventsQuery({ id: isLive ? toTicketmasterEventId(eventId) : undefined, size: 1 }),
+    enabled: isLive,
+  });
+
+  if (mock) return <EventDetail event={mock} />;
+
+  if (query.isPending) {
+    return (
+      <Shell>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+          Loading event…
+        </p>
+      </Shell>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <Shell>
+        <div>
+          <AlertTriangle className="mx-auto h-6 w-6 text-primary" strokeWidth={2.2} />
+          <p className="mt-3 text-base font-bold">Live ticket data is unavailable</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            We couldn’t reach the ticket provider. Try again in a moment.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  const event = query.data?.[0];
+  if (!event) {
+    return (
+      <Shell>
+        <div>
+          <p className="text-base font-bold">This event is no longer listed</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The provider didn’t return any details for it.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  return <EventDetail event={event} />;
+}
+
+function EventDetail({ event }: { event: PassrEvent }) {
+  const anchorPrice = event.startingAt ?? FALLBACK_ANCHOR_PRICE;
   const watchlist = useWatchlist();
   const saved = isSaved(watchlist, event.id);
 
@@ -46,8 +155,8 @@ function EventDetail() {
     [event.venue, event.category],
   );
   const inventory = useMemo(
-    () => venueInventory(event.id, event.startingAt, layout.zones, event.category !== "Theater"),
-    [event.id, event.startingAt, layout.zones, event.category],
+    () => venueInventory(event.id, anchorPrice, layout.zones, event.category !== "Theater"),
+    [event.id, anchorPrice, layout.zones, event.category],
   );
 
   const available = useMemo(
@@ -83,13 +192,17 @@ function EventDetail() {
   return (
     <main className="mx-auto min-h-screen max-w-md bg-background pb-28">
       <header className="relative">
-        <img
-          src={event.image}
-          alt={event.name}
-          width={1024}
-          height={640}
-          className="h-56 w-full object-cover"
-        />
+        {event.image ? (
+          <img
+            src={event.image}
+            alt={event.name}
+            width={1024}
+            height={640}
+            className="h-56 w-full object-cover"
+          />
+        ) : (
+          <div className="h-56 w-full bg-accent-soft" />
+        )}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <Link
             to="/"
@@ -110,12 +223,26 @@ function EventDetail() {
 
       <section className="bg-foreground px-6 pt-6 pb-8 text-background">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-background/60">
-          {event.category} · {event.subtitle}
+          {event.category}
+          {event.subtitle ? ` · ${event.subtitle}` : ""}
         </p>
         <h1 className="mt-2 text-3xl font-bold leading-[1.1] tracking-tight">{event.name}</h1>
         <p className="mt-3 text-sm text-background/70">
-          {event.date} · {event.venue}, {event.city}
+          {event.date} · {event.venue}
+          {event.city ? `, ${event.city}` : ""}
+          {event.state ? `, ${event.state}` : ""}
         </p>
+        {event.ticketUrl && (
+          <a
+            href={event.ticketUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-background px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground"
+          >
+            View on Ticketmaster
+            <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.4} />
+          </a>
+        )}
       </section>
 
       {/* Seat map + live listings for the tapped section */}
