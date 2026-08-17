@@ -49,17 +49,7 @@ function hydrate() {
     const parsed: unknown = JSON.parse(raw);
 
     if (Array.isArray(parsed)) {
-      items = parsed.filter(
-        (item): item is WatchItem =>
-          typeof item === "object" &&
-          item !== null &&
-          typeof (item as WatchItem).eventId === "string" &&
-          typeof (item as WatchItem).savedPrice === "number" &&
-          typeof (item as WatchItem).currentPrice === "number" &&
-          typeof (item as WatchItem).notify === "boolean" &&
-          typeof (item as WatchItem).event === "object" &&
-          (item as WatchItem).event !== null,
-      );
+      items = parsed as WatchItem[];
     } else {
       items = [];
     }
@@ -74,7 +64,7 @@ function persist() {
   try {
     window.localStorage.setItem(KEY, JSON.stringify(items));
   } catch {
-    /* Ignore localStorage failures. */
+    // Ignore localStorage failures.
   }
 }
 
@@ -82,15 +72,10 @@ export function useWatchlist() {
   return useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
-
       hydrate();
-
-      // Hydration may have changed the store.
       listener();
 
-      return () => {
-        listeners.delete(listener);
-      };
+      return () => listeners.delete(listener);
     },
     () => items,
     () => [],
@@ -102,10 +87,7 @@ export function toggleNotify(eventId: string) {
 
   items = items.map((item) =>
     item.eventId === eventId
-      ? {
-          ...item,
-          notify: !item.notify,
-        }
+      ? { ...item, notify: !item.notify }
       : item,
   );
 
@@ -121,7 +103,7 @@ export function toggleSaved(event: PassrEvent, currentPrice: number) {
   if (existing) {
     items = items.filter((item) => item.eventId !== event.id);
   } else {
-    const savedEvent: SavedEvent = {
+    const savedEvent = {
       id: event.id,
       name: event.name,
       date: event.date,
@@ -132,7 +114,7 @@ export function toggleSaved(event: PassrEvent, currentPrice: number) {
       subtitle: event.subtitle,
       image: event.image,
       ticketUrl: event.ticketUrl,
-    };
+    } satisfies SavedEvent;
 
     items = [
       ...items,
