@@ -43,7 +43,9 @@ export const Route = createFileRoute("/event/$eventId")({
 
     // Ticketmaster-backed events aren't in mock-data; the component loads
     // them from Passr's /api/events/ticketmaster route on the client.
-    if (!event && !isTicketmasterId(params.eventId)) throw notFound();
+    if (!event && !isTicketmasterId(params.eventId)) {
+      throw notFound();
+    }
 
     return { event: event ?? null };
   },
@@ -76,7 +78,7 @@ export const Route = createFileRoute("/event/$eventId")({
     }
 
     const title = `${event.name} — real prices on Passr`;
-    const description = `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across four marketplaces from ${money(event.startingAt)}.`;
+    const description = `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across four marketplaces from ${money(event.startingAt)}`;
 
     return {
       meta: [
@@ -128,7 +130,9 @@ function EventRoute() {
     enabled: isLive,
   });
 
-  if (mock) return <EventDetail event={mock} />;
+  if (mock) {
+    return <EventDetail event={mock} />;
+  }
 
   if (query.isPending) {
     return (
@@ -227,8 +231,7 @@ function EventDetail({ event }: { event: PassrEvent }) {
   const [listingId, setListingId] = useState<string | null>(null);
 
   const listing =
-    zone.listings.find((l) => l.id === listingId) ??
-    zone.listings[0]!;
+    zone.listings.find((l) => l.id === listingId) ?? zone.listings[0]!;
 
   const [people, setPeople] = useState(2);
 
@@ -286,10 +289,7 @@ function EventDetail({ event }: { event: PassrEvent }) {
             }`}
           >
             {saved ? (
-              <Bell
-                className="h-5 w-5"
-                strokeWidth={2.2}
-              />
+              <Bell className="h-5 w-5" strokeWidth={2.2} />
             ) : (
               <BellOff
                 className="h-5 w-5"
@@ -501,8 +501,8 @@ function EventDetail({ event }: { event: PassrEvent }) {
         </p>
 
         <p className="mt-3 text-sm text-muted-foreground">
-          Average out-the-door price paid for {zone.zone.name} over the last
-          30 days.
+          Average out-the-door price paid for{" "}
+          {zone.zone.name} over the last 30 days.
         </p>
 
         <span
@@ -525,10 +525,13 @@ function EventDetail({ event }: { event: PassrEvent }) {
         />
 
         <p className="text-sm leading-relaxed">
-          <span className="font-bold">Listing check passed.</span>{" "}
+          <span className="font-bold">
+            Listing check passed.
+          </span>{" "}
           <span className="text-muted-foreground">
-            Seller history, price movement, and delivery method all match
-            normal patterns for this venue. Nothing looks off.
+            Seller history, price movement, and delivery method
+            all match normal patterns for this venue. Nothing
+            looks off.
           </span>
         </p>
       </section>
