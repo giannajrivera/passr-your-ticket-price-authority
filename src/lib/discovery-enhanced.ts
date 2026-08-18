@@ -4,25 +4,16 @@ import type { PassrEvent } from "@/lib/types";
 import {
   buildHomeRails,
   fetchDiscoveryPool,
+  type DiscoveryFilters,
 } from "@/lib/discovery";
 
-export type EnhancedDiscoveryOptions = {
-  profile?: PassrProfile | null;
+export type EnhancedDiscoveryOptions =
+  DiscoveryFilters & {
+    profile?: PassrProfile | null;
 
-  term?: string;
-  category?: string;
-  subcategory?: string;
-
-  /**
-   * Explicit search location overrides the
-   * profile location.
-   */
-  location?: string;
-  radiusMiles?: number;
-
-  page?: number;
-  size?: number;
-};
+    page?: number;
+    size?: number;
+  };
 
 export type DiscoveryResult = {
   events: PassrEvent[];
@@ -36,6 +27,14 @@ export type DiscoveryResult = {
   }>;
 };
 
+/**
+ * Main discovery entry point.
+ *
+ * All provider fetching, taxonomy matching, filtering, ranking and
+ * deduplication lives in discovery.ts.
+ *
+ * This function only coordinates the result.
+ */
 export async function getEnhancedDiscovery(
   options: EnhancedDiscoveryOptions = {},
 ): Promise<DiscoveryResult> {
@@ -46,11 +45,16 @@ export async function getEnhancedDiscovery(
     await fetchDiscoveryPool(
       profile,
       {
-        term: options.term,
-        category: options.category,
-        subcategory: options.subcategory,
-        location: options.location,
-        radiusMiles: options.radiusMiles,
+        term:
+          options.term,
+        category:
+          options.category,
+        subcategory:
+          options.subcategory,
+        location:
+          options.location,
+        radiusMiles:
+          options.radiusMiles,
       },
     );
 
@@ -62,12 +66,18 @@ export async function getEnhancedDiscovery(
 
   return {
     events,
-    suggested: rails.suggested,
-    trending: rails.trending,
-    categories: rails.categories,
+    suggested:
+      rails.suggested,
+    trending:
+      rails.trending,
+    categories:
+      rails.categories,
   };
 }
 
+/**
+ * Flat event discovery helper.
+ */
 export async function discoverEvents(
   options: EnhancedDiscoveryOptions = {},
 ): Promise<PassrEvent[]> {
@@ -79,6 +89,9 @@ export async function discoverEvents(
   return result.events;
 }
 
+/**
+ * Personalized "For You" results.
+ */
 export async function getSuggestedEvents(
   profile: PassrProfile | null,
 ): Promise<PassrEvent[]> {
@@ -90,6 +103,9 @@ export async function getSuggestedEvents(
   return result.suggested;
 }
 
+/**
+ * Global trending results.
+ */
 export async function getTrendingEvents(
   profile: PassrProfile | null,
 ): Promise<PassrEvent[]> {
@@ -101,6 +117,9 @@ export async function getTrendingEvents(
   return result.trending;
 }
 
+/**
+ * Category rails for the home/discovery page.
+ */
 export async function getCategoryRails(
   profile: PassrProfile | null,
 ): Promise<
@@ -118,6 +137,14 @@ export async function getCategoryRails(
   return result.categories;
 }
 
+/**
+ * Search helper with client-side pagination over the normalized discovery
+ * pool.
+ *
+ * The provider pool is intentionally fetched larger than the visible page
+ * because Passr needs enough inventory to rank, deduplicate and personalize
+ * before displaying results.
+ */
 export async function searchEvents(
   options: EnhancedDiscoveryOptions,
 ): Promise<{
@@ -130,15 +157,17 @@ export async function searchEvents(
       options,
     );
 
-  const page = Math.max(
-    0,
-    options.page ?? 0,
-  );
+  const page =
+    Math.max(
+      0,
+      options.page ?? 0,
+    );
 
-  const size = Math.max(
-    1,
-    options.size ?? 20,
-  );
+  const size =
+    Math.max(
+      1,
+      options.size ?? 20,
+    );
 
   const start =
     page * size;
@@ -158,3 +187,4 @@ export async function searchEvents(
       result.events.length,
   };
 }
+```
