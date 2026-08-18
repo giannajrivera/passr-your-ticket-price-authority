@@ -1,6 +1,7 @@
 import {
   createFileRoute,
   Link,
+  useNavigate,
   useSearch,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -36,6 +37,13 @@ type TaxonomyCategory = {
   subcategories?: unknown;
 };
 
+type TaxonomyNode = {
+  key?: unknown;
+  id?: unknown;
+  label?: unknown;
+  name?: unknown;
+};
+
 type CategoryOption = {
   key: string;
   label: string;
@@ -45,6 +53,77 @@ type SubcategoryOption = {
   key: string;
   label: string;
 };
+
+interface SearchParams {
+  q?: string;
+  category?: string;
+  subcategory?: string;
+  location?: string;
+}
+
+export const Route =
+  createFileRoute("/search")({
+    validateSearch: (
+      search: Record<
+        string,
+        unknown
+      >,
+    ): SearchParams => {
+      const q =
+        typeof search.q ===
+        "string"
+          ? search.q
+          : undefined;
+
+      const category =
+        typeof search.category ===
+        "string"
+          ? search.category
+          : undefined;
+
+      const subcategory =
+        typeof search.subcategory ===
+        "string"
+          ? search.subcategory
+          : undefined;
+
+      const location =
+        typeof search.location ===
+        "string"
+          ? search.location
+          : undefined;
+
+      return {
+        ...(q !== undefined
+          ? { q }
+          : {}),
+        ...(category !==
+        undefined
+          ? { category }
+          : {}),
+        ...(subcategory !==
+        undefined
+          ? { subcategory }
+          : {}),
+        ...(location !==
+        undefined
+          ? { location }
+          : {}),
+      };
+    },
+
+    component:
+      SearchResults,
+  });
+
+function readString(
+  value: unknown,
+): string | undefined {
+  return typeof value ===
+    "string"
+    ? value
+    : undefined;
+}
 
 function getCategories(): CategoryOption[] {
   const taxonomy =
@@ -57,7 +136,8 @@ function getCategories(): CategoryOption[] {
           item: unknown,
         ): CategoryOption | null => {
           if (
-            typeof item !== "object" ||
+            typeof item !==
+              "object" ||
             item === null
           ) {
             return null;
@@ -67,18 +147,20 @@ function getCategories(): CategoryOption[] {
             item as TaxonomyCategory;
 
           const key =
-            typeof data.key === "string"
-              ? data.key
-              : typeof data.id === "string"
-                ? data.id
-                : undefined;
+            readString(
+              data.key,
+            ) ??
+            readString(
+              data.id,
+            );
 
           const label =
-            typeof data.label === "string"
-              ? data.label
-              : typeof data.name === "string"
-                ? data.name
-                : undefined;
+            readString(
+              data.label,
+            ) ??
+            readString(
+              data.name,
+            );
 
           if (!key || !label) {
             return null;
@@ -99,7 +181,8 @@ function getCategories(): CategoryOption[] {
   }
 
   if (
-    typeof taxonomy !== "object" ||
+    typeof taxonomy !==
+      "object" ||
     taxonomy === null
   ) {
     return [];
@@ -110,22 +193,24 @@ function getCategories(): CategoryOption[] {
       string,
       unknown
     >,
-  ).map(([key, value]) => {
-    const data =
-      value as TaxonomyCategory;
+  ).map(
+    ([key, value]) => {
+      const data =
+        value as TaxonomyCategory;
 
-    return {
-      key,
-      label:
-        typeof data?.label ===
-        "string"
-          ? data.label
-          : typeof data?.name ===
-              "string"
-            ? data.name
-            : key,
-    };
-  });
+      return {
+        key,
+        label:
+          readString(
+            data?.label,
+          ) ??
+          readString(
+            data?.name,
+          ) ??
+          key,
+      };
+    },
+  );
 }
 
 function getCategoryData(
@@ -215,30 +300,23 @@ function getAllSubcategories(
         }
 
         const data =
-          item as {
-            key?: unknown;
-            id?: unknown;
-            label?: unknown;
-            name?: unknown;
-          };
+          item as TaxonomyNode;
 
         const key =
-          typeof data.key ===
-          "string"
-            ? data.key
-            : typeof data.id ===
-                "string"
-              ? data.id
-              : undefined;
+          readString(
+            data.key,
+          ) ??
+          readString(
+            data.id,
+          );
 
         const label =
-          typeof data.label ===
-          "string"
-            ? data.label
-            : typeof data.name ===
-                "string"
-              ? data.name
-              : undefined;
+          readString(
+            data.label,
+          ) ??
+          readString(
+            data.name,
+          );
 
         if (!key || !label) {
           return null;
@@ -258,71 +336,14 @@ function getAllSubcategories(
     );
 }
 
-interface SearchParams {
-  q?: string;
-  category?: string;
-  subcategory?: string;
-  location?: string;
-}
-
-export const Route =
-  createFileRoute("/search")({
-    validateSearch: (
-      search: Record<
-        string,
-        unknown
-      >,
-    ): SearchParams => {
-      const q =
-        typeof search.q ===
-        "string"
-          ? search.q
-          : undefined;
-
-      const category =
-        typeof search.category ===
-        "string"
-          ? search.category
-          : undefined;
-
-      const subcategory =
-        typeof search.subcategory ===
-        "string"
-          ? search.subcategory
-          : undefined;
-
-      const location =
-        typeof search.location ===
-        "string"
-          ? search.location
-          : undefined;
-
-      return {
-        ...(q !== undefined
-          ? { q }
-          : {}),
-        ...(category !==
-        undefined
-          ? { category }
-          : {}),
-        ...(subcategory !==
-        undefined
-          ? { subcategory }
-          : {}),
-        ...(location !==
-        undefined
-          ? { location }
-          : {}),
-      };
-    },
-
-    component:
-      SearchResults,
-  });
-
 function SearchResults() {
   const search =
     useSearch({
+      from: Route.fullPath,
+    });
+
+  const navigate =
+    useNavigate({
       from: Route.fullPath,
     });
 
@@ -346,12 +367,14 @@ function SearchResults() {
       search.category,
     );
 
-  const [subcategory, setSubcategory] =
-    useState<
-      string | undefined
-    >(
-      search.subcategory,
-    );
+  const [
+    subcategory,
+    setSubcategory,
+  ] = useState<
+    string | undefined
+  >(
+    search.subcategory,
+  );
 
   const [location, setLocation] =
     useState(
@@ -365,36 +388,50 @@ function SearchResults() {
     setShowSuggestions,
   ] = useState(false);
 
+  const categories =
+    useMemo(
+      () => getCategories(),
+      [],
+    );
+
+  const subcategories =
+    useMemo(
+      () =>
+        category
+          ? getAllSubcategories(
+              category,
+            )
+          : [],
+      [category],
+    );
+
   const query =
     useQuery({
       queryKey: [
         "search",
         {
-          term: q,
+          term: q.trim(),
           category,
           subcategory,
-          location,
+          location:
+            location.trim(),
         },
       ],
 
       queryFn:
-        async () => {
-          return searchEvents({
+        async () =>
+          searchEvents({
             term:
               q.trim() ||
               undefined,
-
             category,
-
             subcategory,
-
             location:
               location.trim() ||
               undefined,
-
             profile,
-          });
-        },
+            size: 150,
+          }),
 
       enabled:
         Boolean(
@@ -405,29 +442,10 @@ function SearchResults() {
         ),
     });
 
-  const categories =
-    getCategories();
-
-  const subcategories =
-    category
-      ? getAllSubcategories(
-          category,
-        )
-      : [];
-
   const events: PassrEvent[] =
     query.data?.events ??
     [];
 
-  /**
-   * Live suggestions are derived from the
-   * same real provider results we're already
-   * retrieving.
-   *
-   * This gives the user immediate entity-like
-   * suggestions without inventing a second
-   * search system.
-   */
   const suggestions =
     useMemo(() => {
       const term =
@@ -444,49 +462,85 @@ function SearchResults() {
         new Set<string>();
 
       return query.data.events
-        .filter((event) => {
-          const name =
-            event.name
-              ?.toLowerCase() ??
-            "";
+        .filter(
+          (event) => {
+            const searchable =
+              [
+                event.name,
+                event.subtitle,
+                event.venue,
+                event.genre,
+                event.subGenre,
+                event.city,
+                event.category,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
 
-          const venue =
-            event.venue
-              ?.toLowerCase() ??
-            "";
+            return searchable.includes(
+              term,
+            );
+          },
+        )
+        .filter(
+          (event) => {
+            const key =
+              event.name
+                .trim()
+                .toLowerCase();
 
-          const genre =
-            event.genre
-              ?.toLowerCase() ??
-            "";
+            if (
+              seen.has(key)
+            ) {
+              return false;
+            }
 
-          return (
-            name.includes(term) ||
-            venue.includes(term) ||
-            genre.includes(term)
-          );
-        })
-        .filter((event) => {
-          const key =
-            event.name
-              .trim()
-              .toLowerCase();
+            seen.add(key);
 
-          if (
-            seen.has(key)
-          ) {
-            return false;
-          }
-
-          seen.add(key);
-
-          return true;
-        })
+            return true;
+          },
+        )
         .slice(0, 6);
     }, [
       q,
       query.data,
     ]);
+
+  const syncRoute = (
+    next: {
+      q?: string;
+      category?: string;
+      subcategory?: string;
+      location?: string;
+    },
+  ) => {
+    void navigate({
+      search: {
+        ...(next.q
+          ? { q: next.q }
+          : {}),
+        ...(next.category
+          ? {
+              category:
+                next.category,
+            }
+          : {}),
+        ...(next.subcategory
+          ? {
+              subcategory:
+                next.subcategory,
+            }
+          : {}),
+        ...(next.location
+          ? {
+              location:
+                next.location,
+            }
+          : {}),
+      },
+    });
+  };
 
   const clearFilters =
     () => {
@@ -499,6 +553,10 @@ function SearchResults() {
       );
 
       setLocation("");
+
+      syncRoute({
+        q: q.trim() || undefined,
+      });
     };
 
   return (
@@ -527,7 +585,6 @@ function SearchResults() {
             </span>
           </div>
 
-          {/* Search */}
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
 
@@ -539,14 +596,25 @@ function SearchResults() {
                 )
               }
               onChange={(event) => {
-                setQ(
+                const value =
                   event.target
-                    .value,
-                );
+                    .value;
 
+                setQ(value);
                 setShowSuggestions(
                   true,
                 );
+
+                syncRoute({
+                  q:
+                    value.trim() ||
+                    undefined,
+                  category,
+                  subcategory,
+                  location:
+                    location.trim() ||
+                    undefined,
+                });
               }}
               placeholder="Search events, artists, venues..."
               className="w-full rounded-full border border-border bg-muted px-12 py-3 font-inter text-base text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
@@ -560,6 +628,14 @@ function SearchResults() {
                   setShowSuggestions(
                     false,
                   );
+
+                  syncRoute({
+                    category,
+                    subcategory,
+                    location:
+                      location.trim() ||
+                      undefined,
+                  });
                 }}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 aria-label="Clear search"
@@ -575,7 +651,9 @@ function SearchResults() {
                   {suggestions.map(
                     (event) => (
                       <button
-                        key={event.id}
+                        key={
+                          event.id
+                        }
                         type="button"
                         onClick={() => {
                           setQ(
@@ -585,6 +663,16 @@ function SearchResults() {
                           setShowSuggestions(
                             false,
                           );
+
+                          syncRoute({
+                            q:
+                              event.name,
+                            category,
+                            subcategory,
+                            location:
+                              location.trim() ||
+                              undefined,
+                          });
                         }}
                         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
                       >
@@ -592,13 +680,23 @@ function SearchResults() {
 
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold">
-                            {event.name}
+                            {
+                              event.name
+                            }
                           </span>
 
                           <span className="block truncate text-xs text-muted-foreground">
-                            {event.venue ??
-                              event.genre ??
-                              event.category}
+                            {[
+                              event.venue,
+                              event.city,
+                              event.genre,
+                            ]
+                              .filter(
+                                Boolean,
+                              )
+                              .join(
+                                " · ",
+                              )}
                           </span>
                         </span>
                       </button>
@@ -608,9 +706,7 @@ function SearchResults() {
               )}
           </div>
 
-          {/* Search filters */}
           <div className="mt-4 space-y-4">
-
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Categories
@@ -625,16 +721,30 @@ function SearchResults() {
                       }
                       type="button"
                       onClick={() => {
-                        setCategory(
+                        const nextCategory =
                           category ===
-                            item.key
+                          item.key
                             ? undefined
-                            : item.key,
+                            : item.key;
+
+                        setCategory(
+                          nextCategory,
                         );
 
                         setSubcategory(
                           undefined,
                         );
+
+                        syncRoute({
+                          q:
+                            q.trim() ||
+                            undefined,
+                          category:
+                            nextCategory,
+                          location:
+                            location.trim() ||
+                            undefined,
+                        });
                       }}
                       className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                         category ===
@@ -656,15 +766,13 @@ function SearchResults() {
               0 && (
               <div>
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                  {
-                    getCategoryData(
-                      category!,
-                    )?.label ??
+                  {getCategoryData(
+                    category!,
+                  )?.label ??
                     getCategoryData(
                       category!,
                     )?.name ??
-                    "More filters"
-                  }
+                    "More filters"}
                 </p>
 
                 <div className="flex gap-2 overflow-x-auto pb-1">
@@ -678,12 +786,27 @@ function SearchResults() {
                         }
                         type="button"
                         onClick={() => {
-                          setSubcategory(
+                          const nextSubcategory =
                             subcategory ===
-                              sub.key
+                            sub.key
                               ? undefined
-                              : sub.key,
+                              : sub.key;
+
+                          setSubcategory(
+                            nextSubcategory,
                           );
+
+                          syncRoute({
+                            q:
+                              q.trim() ||
+                              undefined,
+                            category,
+                            subcategory:
+                              nextSubcategory,
+                            location:
+                              location.trim() ||
+                              undefined,
+                          });
                         }}
                         className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                           subcategory ===
@@ -702,7 +825,6 @@ function SearchResults() {
               </div>
             )}
 
-            {/* Location */}
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Location
@@ -717,13 +839,27 @@ function SearchResults() {
                   }
                   onChange={(
                     event,
-                  ) =>
-                    setLocation(
+                  ) => {
+                    const value =
                       event
                         .target
-                        .value,
-                    )
-                  }
+                        .value;
+
+                    setLocation(
+                      value,
+                    );
+
+                    syncRoute({
+                      q:
+                        q.trim() ||
+                        undefined,
+                      category,
+                      subcategory,
+                      location:
+                        value.trim() ||
+                        undefined,
+                    });
+                  }}
                   placeholder="City, state, or ZIP"
                   className="w-full rounded-xl border border-border bg-background px-10 py-2.5 text-sm outline-none focus:border-primary"
                 />
@@ -731,15 +867,15 @@ function SearchResults() {
 
               {profileLocation &&
                 !location && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Using your profile
-                    location:
-                    {" "}
-                    {
-                      profileLocation
-                    }
-                  </p>
-                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Using your profile
+                  location:
+                  {" "}
+                  {
+                    profileLocation
+                  }
+                </p>
+              )}
             </div>
 
             {(category ||
@@ -758,11 +894,10 @@ function SearchResults() {
           </div>
         </header>
 
-        {/* Results */}
         {query.isPending && (
           <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-muted/50 px-6 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Searching...
+            Searching Passr...
           </div>
         )}
 
@@ -779,14 +914,16 @@ function SearchResults() {
               {events.length >
               0 ? (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
                       Found{" "}
-                      {
-                        query
-                          .data
-                          .totalCount
-                      }{" "}
+                      <span className="font-semibold text-foreground">
+                        {
+                          query
+                            .data
+                            .totalCount
+                        }
+                      </span>{" "}
                       {q
                         ? `results for "${q}"`
                         : "results"}
@@ -795,7 +932,9 @@ function SearchResults() {
                     {location && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
                         <MapPin className="h-3 w-3" />
-                        {location}
+                        {
+                          location
+                        }
                       </span>
                     )}
                   </div>
@@ -832,10 +971,10 @@ function SearchResults() {
           !category &&
           !subcategory &&
           !location && (
-            <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
-              Search for an artist, event, venue, or choose a category to explore.
-            </div>
-          )}
+          <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
+            Search for an artist, event, venue, or choose a category to explore.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -854,16 +993,18 @@ function SearchEventCard({
       }}
       className="group block overflow-hidden rounded-2xl border border-border bg-card transition hover:border-primary/30 hover:shadow-lg"
     >
-      {event.image ? (
-        <img
-          src={event.image}
-          alt={event.name}
-          loading="lazy"
-          className="h-40 w-full object-cover transition group-hover:scale-105"
-        />
-      ) : (
-        <div className="h-40 w-full bg-accent-soft" />
-      )}
+      <div className="h-40 w-full overflow-hidden">
+        {event.image ? (
+          <img
+            src={event.image}
+            alt={event.name}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="h-full w-full bg-accent-soft" />
+        )}
+      </div>
 
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -903,3 +1044,4 @@ function SearchEventCard({
     </Link>
   );
 }
+```
