@@ -6,13 +6,89 @@ import { money } from "@/lib/mock-data";
 import { searchEvents } from "@/lib/discovery-enhanced";
 import type { PassrEvent } from "@/lib/types";
 import { getProfile } from "@/lib/profile";
-import {
-  EXPANDED_TAXONOMY,
-  type CategoryKey,
-  getAllSubcategories,
-} from "@/lib/taxonomy-expanded";
+import { EXPANDED_TAXONOMY } from "@/lib/taxonomy-expanded";
 
 import logo from "@/assets/passr-logo.png.asset.json";
+
+/**
+ * CategoryKey is derived directly from the taxonomy object.
+ *
+ * This avoids importing CategoryKey from taxonomy-expanded.ts,
+ * because that file does not currently export the type.
+ */
+type CategoryKey = keyof typeof EXPANDED_TAXONOMY;
+
+type Subcategory = {
+  key: string;
+  label: string;
+};
+
+/**
+ * Reads subcategories from the existing taxonomy without requiring
+ * taxonomy-expanded.ts to export a separate getAllSubcategories helper.
+ */
+function getAllSubcategories(category: CategoryKey): Subcategory[] {
+  const categoryData = EXPANDED_TAXONOMY[category] as unknown;
+
+  if (
+    typeof categoryData !== "object" ||
+    categoryData === null
+  ) {
+    return [];
+  }
+
+  const data = categoryData as {
+    subcategories?: unknown;
+  };
+
+  if (!Array.isArray(data.subcategories)) {
+    return [];
+  }
+
+  return data.subcategories
+    .map((sub: unknown): Subcategory | null => {
+      if (
+        typeof sub !== "object" ||
+        sub === null
+      ) {
+        return null;
+      }
+
+      const item = sub as {
+        key?: unknown;
+        label?: unknown;
+        id?: unknown;
+        name?: unknown;
+      };
+
+      const key =
+        typeof item.key === "string"
+          ? item.key
+          : typeof item.id === "string"
+            ? item.id
+            : undefined;
+
+      const label =
+        typeof item.label === "string"
+          ? item.label
+          : typeof item.name === "string"
+            ? item.name
+            : undefined;
+
+      if (!key || !label) {
+        return null;
+      }
+
+      return {
+        key,
+        label,
+      };
+    })
+    .filter(
+      (sub): sub is Subcategory =>
+        sub !== null,
+    );
+}
 
 interface SearchParams {
   q?: string;
@@ -22,14 +98,17 @@ interface SearchParams {
 }
 
 export const Route = createFileRoute("/search")({
-  validateSearch: (search: Record<string, unknown>): SearchParams => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): SearchParams => {
     const q =
       typeof search["q"] === "string"
         ? search["q"]
         : undefined;
 
     const category =
-      typeof search["category"] === "string"
+      typeof search["category"] === "string" &&
+      search["category"] in EXPANDED_TAXONOMY
         ? (search["category"] as CategoryKey)
         : undefined;
 
@@ -45,8 +124,12 @@ export const Route = createFileRoute("/search")({
 
     return {
       ...(q !== undefined ? { q } : {}),
-      ...(category !== undefined ? { category } : {}),
-      ...(subcategory !== undefined ? { subcategory } : {}),
+      ...(category !== undefined
+        ? { category }
+        : {}),
+      ...(subcategory !== undefined
+        ? { subcategory }
+        : {}),
       ...(page !== undefined ? { page } : {}),
     };
   },
@@ -61,18 +144,29 @@ function SearchResults() {
 
   const profile = getProfile();
 
-  const [q, setQ] = useState(search.q ?? "");
-  const [category, setCategory] = useState(search.category);
-  const [subcategory, setSubcategory] = useState(
-    search.subcategory,
+  const [q, setQ] = useState(
+    search.q ?? "",
   );
-  const [page, setPage] = useState(search.page ?? 0);
+
+  const [category, setCategory] =
+    useState<CategoryKey | undefined>(
+      search.category,
+    );
+
+  const [subcategory, setSubcategory] =
+    useState<string | undefined>(
+      search.subcategory,
+    );
+
+  const [page, setPage] = useState(
+    search.page ?? 0,
+  );
 
   const query = useQuery({
     queryKey: [
       "search",
       {
-        term: q,
+        keyword: q,
         category,
         subcategory,
         page,
@@ -80,17 +174,13 @@ function SearchResults() {
     ],
 
     queryFn: () => {
-      const filters: Parameters<typeof searchEvents>[0] = {
+      const filters: Parameters<
+        typeof searchEvents
+      >[0] = {
         page,
         size: 20,
-        profile,
       };
 
-      /*
-       * IMPORTANT:
-       * discovery.ts / searchEvents expects `term`,
-       * not `keyword`.
-       */
       if (q.trim()) {
         filters.term = q.trim();
       }
@@ -100,13 +190,19 @@ function SearchResults() {
       }
 
       if (subcategory) {
-        filters.subcategory = subcategory;
+        filters.subcategory =
+          subcategory;
       }
 
-      return searchEvents(filters);
+      return searchEvents(
+        filters,
+        profile,
+      );
     },
 
-    enabled: Boolean(q.trim() || category),
+    enabled: Boolean(
+      q.trim() || category,
+    ),
   });
 
   const subcategories = category
@@ -116,6 +212,7 @@ function SearchResults() {
   return (
     <div className="mx-auto min-h-screen max-w-7xl bg-background pb-24 text-foreground">
       <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6 lg:px-8">
+
         <header className="mb-8">
           <Link
             to="/"
@@ -161,30 +258,46 @@ function SearchResults() {
             </h3>
 
             <div className="flex flex-wrap gap-2">
-              {Object.entries(EXPANDED_TAXONOMY).map(
-                ([key, cat]) => (
+              {Object.entries(
+                EXPANDED_TAXONOMY,
+              ).map(([key, cat]) => {
+                const categoryKey =
+                  key as CategoryKey;
+
+                const categoryData =
+                  cat as {
+                    label?: string;
+                  };
+
+                return (
                   <button
                     key={key}
                     onClick={() => {
                       setCategory(
-                        category === (key as CategoryKey)
+                        category ===
+                          categoryKey
                           ? undefined
-                          : (key as CategoryKey),
+                          : categoryKey,
                       );
 
-                      setSubcategory(undefined);
+                      setSubcategory(
+                        undefined,
+                      );
+
                       setPage(0);
                     }}
                     className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      category === key
+                      category ===
+                      categoryKey
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-foreground hover:border-primary/50"
                     }`}
                   >
-                    {cat.label}
+                    {categoryData.label ??
+                      key}
                   </button>
-                ),
-              )}
+                );
+              })}
             </div>
           </div>
 
@@ -192,37 +305,47 @@ function SearchResults() {
           {subcategories.length > 0 && (
             <div>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {EXPANDED_TAXONOMY[category!]?.label ?? ""}
+                {(
+                  EXPANDED_TAXONOMY[
+                    category!
+                  ] as {
+                    label?: string;
+                  }
+                )?.label ?? ""}
               </h3>
 
               <div className="flex flex-wrap gap-2">
-                {subcategories.map((sub) => (
-                  <button
-                    key={sub.key}
-                    onClick={() => {
-                      setSubcategory(
-                        subcategory === sub.key
-                          ? undefined
-                          : sub.key,
-                      );
+                {subcategories.map(
+                  (sub) => (
+                    <button
+                      key={sub.key}
+                      onClick={() => {
+                        setSubcategory(
+                          subcategory ===
+                            sub.key
+                            ? undefined
+                            : sub.key,
+                        );
 
-                      setPage(0);
-                    }}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      subcategory === sub.key
-                        ? "border-primary/60 bg-primary/10 text-primary"
-                        : "border-border bg-muted text-foreground hover:border-primary/30"
-                    }`}
-                  >
-                    {sub.label}
-                  </button>
-                ))}
+                        setPage(0);
+                      }}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        subcategory ===
+                        sub.key
+                          ? "border-primary/60 bg-primary/10 text-primary"
+                          : "border-border bg-muted text-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      {sub.label}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Loading */}
+        {/* Results */}
         {query.isPending && (
           <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-muted/50 px-6 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -230,29 +353,22 @@ function SearchResults() {
           </div>
         )}
 
-        {/* Error */}
         {query.isError && (
           <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground">
-              Could not load results.
-            </p>
-
-            <p className="mt-2">
-              Something went wrong while searching live event data.
-              Please try again.
-            </p>
+            Could not load results.
           </div>
         )}
 
-        {/* Results */}
         {!query.isPending &&
           !query.isError &&
           query.data && (
             <>
-              {query.data.events.length > 0 ? (
+              {query.data.events.length >
+              0 ? (
                 <div className="space-y-6">
                   <p className="text-sm text-muted-foreground">
-                    Found {query.data.totalCount}{" "}
+                    Found{" "}
+                    {query.data.events.length}{" "}
                     {q
                       ? `results for "${q}"`
                       : "results"}
@@ -270,7 +386,8 @@ function SearchResults() {
                   </div>
 
                   {/* Pagination */}
-                  {query.data.hasMore && (
+                  {query.data.events.length >=
+                    20 && (
                     <div className="flex justify-center gap-3 pt-8">
                       {page > 0 && (
                         <button
@@ -290,7 +407,9 @@ function SearchResults() {
 
                       <button
                         onClick={() =>
-                          setPage(page + 1)
+                          setPage(
+                            page + 1,
+                          )
                         }
                         className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
                       >
@@ -301,8 +420,7 @@ function SearchResults() {
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-muted/40 px-6 py-8 text-center text-sm text-muted-foreground">
-                  No events found. Try a different search
-                  or category.
+                  No events found. Try a different search or category.
                 </div>
               )}
             </>
@@ -314,8 +432,7 @@ function SearchResults() {
           !q &&
           !category && (
             <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
-              Enter a search or select a category to
-              explore events.
+              Enter a search or select a category to explore events.
             </div>
           )}
       </div>
@@ -331,7 +448,9 @@ function SearchEventCard({
   return (
     <Link
       to="/event/$eventId"
-      params={{ eventId: event.id }}
+      params={{
+        eventId: event.id,
+      }}
       className="group block overflow-hidden rounded-2xl border border-border bg-card transition hover:border-primary/30 hover:shadow-lg"
     >
       {event.image ? (
@@ -347,8 +466,13 @@ function SearchEventCard({
 
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <span>{event.category}</span>
-          <span>{event.city}</span>
+          <span>
+            {event.category}
+          </span>
+
+          <span>
+            {event.city}
+          </span>
         </div>
 
         <div>
@@ -368,9 +492,12 @@ function SearchEventCard({
           </span>
 
           <span className="price text-sm font-bold">
-            {event.startingAt === undefined
+            {event.startingAt ===
+            undefined
               ? "—"
-              : money(event.startingAt)}
+              : money(
+                  event.startingAt,
+                )}
           </span>
         </div>
       </div>
