@@ -1,232 +1,150 @@
-/**
- * Enhanced discovery layer with pagination, location, and category filtering.
- *
- * Features:
- * - Fetch 25+ events per category via pagination
- * - Location-based filtering
- * - Category + subcategory filtering
- * - Natural language query parsing
- * - Deduplication
- */
-
 import type { PassrProfile } from "@/lib/profile";
 import type { PassrEvent } from "@/lib/types";
-import type { CategoryKey, MusicSubcategory, SportsSubcategory } from "@/lib/taxonomy-expanded";
+import {
+  buildHomeRails,
+  fetchDiscoveryPool,
+} from "@/lib/discovery";
 
-export interface DiscoveryFilters {
-  category?: CategoryKey;
+export type EnhancedDiscoveryOptions = {
+  profile?: PassrProfile | null;
+  term?: string;
+  category?: string;
   subcategory?: string;
   location?: string;
-  radius?: number; // miles
-  keyword?: string;
-  page?: number;
-  size?: number;
-}
+  radiusMiles?: number;
+};
 
-async function fetchTicketmasterBatch(params: Record<string, string | number | undefined>): Promise<PassrEvent[]> {
-  const search = new URLSearchParams();
+export type DiscoveryResult = {
+  events: PassrEvent[];
+  suggested: PassrEvent[];
+  trending: PassrEvent[];
+  categories: Array<{
+    id: string;
+    title: string;
+    events: PassrEvent[];
+  }>;
+};
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-    search.set(key, String(value));
-  });
+/**
+ * Canonical higher-level discovery API.
+ *
+ * `discovery.ts` owns provider fetching, pagination,
+ * validation, deduplication, filtering, and ranking.
+ *
+ * This file only turns that candidate pool into the
+ * structures consumed by the UI.
+ */
+export async function getEnhancedDiscovery(
+  options: EnhancedDiscoveryOptions = {},
+): Promise<DiscoveryResult> {
+  const profile = options.profile ?? null;
 
-  const response = await fetch(`/api/events/ticketmaster?${search.toString()}`);
-
-  if (!response.ok) {
-    return [];
-  }
-
-  const payload = (await response.json()) as { ok?: boolean; events?: PassrEvent[] };
-
-  if (!payload.ok || !Array.isArray(payload.events)) {
-    return [];
-  }
-
-  return payload.events;
-}
-
-function normalizeRoot(value: string): string {
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return "";
-
-  if (trimmed.includes("music") || trimmed.includes("concert")) return "music";
-  if (trimmed.includes("sports") || trimmed.includes("game")) return "sports";
-  if (trimmed.includes("comedy")) return "comedy";
-  if (trimmed.includes("theater") || trimmed.includes("theatre")) return "theater";
-  if (trimmed.includes("festival")) return "festivals";
-  if (trimmed.includes("family") || trimmed.includes("kids")) return "family";
-  if (trimmed.includes("arts") || trimmed.includes("culture")) return "arts";
-  if (trimmed.includes("film") || trimmed.includes("movie")) return "film";
-
-  return trimmed;
-}
-
-export async function searchEvents(
-  filters: DiscoveryFilters,
-  profile: PassrProfile | null,
-): Promise<{ events: PassrEvent[]; hasMore: boolean; totalCount: number }> {
-  const size = filters.size ?? 25;
-  const page = filters.page ?? 0;
-
-  const requests: Record<string, string | number | undefined>[] = [];
-
-  if (filters.keyword) {
-    // Free-text search
-    requests.push({
-      keyword: filters.keyword,
-      countryCode: "US",
-      size: size,
-      page: page,
-    });
-  } else if (filters.category) {
-    // Category-based search with optional subcategory
-    const classificationMap: Record<CategoryKey, string> = {
-      music: "Music",
-      sports: "Sports",
-      comedy: "Comedy",
-      theater: "Arts & Theatre",
-      arts: "Arts & Theatre",
-      film: "Film",
-      festivals: "Music", // Ticketmaster classifies festivals under Music
-      family: "Family",
-    };
-
-    const classification = classificationMap[filters.category];
-    if (classification) {
-      requests.push({
-        classificationName: classification,
-        countryCode: "US",
-        size: size,
-        page: page,
-      });
-    }
-  } else {
-    // Default broad search
-    requests.push({
-      countryCode: "US",
-      size: size,
-      page: page,
-    });
-  }
-
-  const batches = await Promise.all(
-    requests.map((params) => fetchTicketmasterBatch(params).catch(() => [])),
+  const events = await fetchDiscoveryPool(
+    profile,
+    {
+      term: options.term,
+      category: options.category,
+      subcategory: options.subcategory,
+      location: options.location,
+      radiusMiles: options.radiusMiles,
+    },
   );
 
-  const allEvents = batches.flat();
-
-  // Filter by category if specified and it's a keyword search
-  let filtered = allEvents;
-  if (filters.category && !filters.keyword) {
-    const categoryRoot = normalizeRoot(filters.category);
-    filtered = allEvents.filter((event) => normalizeRoot(event.category) === categoryRoot);
-  }
-
-  // Remove duplicates
-  const seen = new Set<string>();
-  const deduplicated: PassrEvent[] = [];
-  for (const event of filtered) {
-    if (!seen.has(event.id)) {
-      seen.add(event.id);
-      deduplicated.push(event);
-    }
-  }
+  const rails = buildHomeRails(
+    events,
+    profile,
+  );
 
   return {
-    events: deduplicated.slice(0, size),
-    hasMore: deduplicated.length > size,
-    totalCount: deduplicated.length,
+    events,
+    suggested: rails.suggested,
+    trending: rails.trending,
+    categories: rails.categories,
   };
 }
 
-export async function fetchCategoryEvents(
-  category: CategoryKey,
-  profile: PassrProfile | null,
-  targetCount: number = 25,
+/**
+ * Backwards-compatible alias for callers that use
+ * the older discovery naming.
+ */
+export async function discoverEvents(
+  options: EnhancedDiscoveryOptions = {},
 ): Promise<PassrEvent[]> {
-  const classificationMap: Record<CategoryKey, string> = {
-    music: "Music",
-    sports: "Sports",
-    comedy: "Comedy",
-    theater: "Arts & Theatre",
-    arts: "Arts & Theatre",
-    film: "Film",
-    festivals: "Music",
-    family: "Family",
-  };
+  const result =
+    await getEnhancedDiscovery(options);
 
-  const classification = classificationMap[category];
-  if (!classification) return [];
+  return result.events;
+}
 
-  const allEvents: PassrEvent[] = [];
-  let page = 0;
-  const maxPages = 3; // Fetch up to 3 pages to get more events
-
-  while (allEvents.length < targetCount && page < maxPages) {
-    const events = await fetchTicketmasterBatch({
-      classificationName: classification,
-      countryCode: "US",
-      size: 20,
-      page: page,
+/**
+ * Returns the personalized "Suggested for you"
+ * rail.
+ */
+export async function getSuggestedEvents(
+  profile: PassrProfile | null,
+): Promise<PassrEvent[]> {
+  const result =
+    await getEnhancedDiscovery({
+      profile,
     });
 
-    if (!events || events.length === 0) break;
-
-    allEvents.push(...events);
-    page++;
-  }
-
-  // Remove duplicates and score
-  const seen = new Set<string>();
-  const scored: Array<{ event: PassrEvent; score: number }> = [];
-
-  for (const event of allEvents) {
-    if (seen.has(event.id)) continue;
-    seen.add(event.id);
-
-    let score = 0;
-    if (event.trending) score += 10;
-    if (event.startingAt !== undefined) score += 5;
-    if (event.image) score += 3;
-
-    scored.push({ event, score });
-  }
-
-  // Sort and return
-  return scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, targetCount)
-    .map(({ event }) => event);
+  return result.suggested;
 }
 
-export async function getSearchSuggestions(query: string): Promise<{
-  categories: Array<{ key: CategoryKey; label: string }>;
-  artists?: string[];
-}> {
-  const q = query.toLowerCase().trim();
+/**
+ * Returns the current trending rail.
+ *
+ * Trending is still constrained by explicit user
+ * preferences when preferences exist. It is not
+ * allowed to override an explicit category exclusion.
+ */
+export async function getTrendingEvents(
+  profile: PassrProfile | null,
+): Promise<PassrEvent[]> {
+  const result =
+    await getEnhancedDiscovery({
+      profile,
+    });
 
-  const categoryMatches: Array<{ key: CategoryKey; label: string }> = [];
+  return result.trending;
+}
 
-  const categoryLabels: Record<CategoryKey, string> = {
-    music: "Music",
-    sports: "Sports",
-    comedy: "Comedy",
-    theater: "Theater & Performance",
-    arts: "Arts & Culture",
-    film: "Film & Media",
-    festivals: "Festivals",
-    family: "Family Events",
-  };
+/**
+ * Returns category-specific rails.
+ *
+ * Each category gets its own independently ranked
+ * real-event list instead of borrowing the same small
+ * homepage array.
+ */
+export async function getCategoryRails(
+  profile: PassrProfile | null,
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    events: PassrEvent[];
+  }>
+> {
+  const result =
+    await getEnhancedDiscovery({
+      profile,
+    });
 
-  for (const [key, label] of Object.entries(categoryLabels)) {
-    if (label.toLowerCase().includes(q)) {
-      categoryMatches.push({ key: key as CategoryKey, label });
-    }
-  }
+  return result.categories;
+}
 
-  return {
-    categories: categoryMatches,
-    artists: [],
-  };
+/**
+ * Search uses the same real-data discovery pipeline as
+ * homepage recommendations.
+ *
+ * This prevents search from having a separate source
+ * of mock/placeholder events.
+ */
+export async function searchEvents(
+  options: EnhancedDiscoveryOptions,
+): Promise<PassrEvent[]> {
+  const result =
+    await getEnhancedDiscovery(options);
+
+  return result.events;
 }
