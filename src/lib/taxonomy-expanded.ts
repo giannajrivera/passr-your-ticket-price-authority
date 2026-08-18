@@ -1,207 +1,425 @@
-/**
- * Expanded event taxonomy for Passr discovery.
- * Structured as hierarchical: Category → Subcategory → Genre/Type
- *
- * This taxonomy is used for:
- * - onboarding preferences
- * - search category filters
- * - discovery personalization
- * - event classification
- */
-
-export type CategoryKey = "music" | "sports" | "comedy" | "theater" | "arts" | "film" | "festivals" | "family";
-
-export type MusicSubcategory =
-  | "pop"
-  | "rock"
-  | "hiphop"
-  | "rnb"
-  | "country"
-  | "electronic"
-  | "jazz"
-  | "classical"
-  | "latin"
-  | "kpop"
-  | "indie"
-  | "metal"
-  | "folk"
-  | "gospel"
-  | "reggae"
-  | "world";
-
-export type SportsSubcategory =
-  | "football"
-  | "basketball"
-  | "baseball"
-  | "hockey"
-  | "soccer"
-  | "tennis"
-  | "golf"
-  | "mma"
-  | "boxing"
-  | "racing"
-  | "volleyball"
-  | "lacrosse"
-  | "cricket"
-  | "rugby"
-  | "other";
-
-export type ComedySubcategory = "standup" | "improv" | "sketch" | "tours" | "festivals";
-
-export type TheaterSubcategory = "broadway" | "plays" | "musicals" | "dance" | "opera" | "touring";
-
-export type ArtsSubcategory = "museums" | "galleries" | "exhibitions" | "lectures" | "cultural" | "performances";
-
-export type FilmSubcategory = "festivals" | "screenings" | "documentaries" | "anime" | "conventions";
-
-export type FestivalSubcategory = "music" | "food" | "cultural" | "arts" | "film" | "comedy" | "family";
-
-export type FamilySubcategory = "shows" | "theater" | "festivals" | "educational" | "attractions";
-
-export interface CategoryNode {
-  key: string;
+export type PassrCategory = {
+  id: string;
   label: string;
-  subcategories: {
-    key: string;
-    label: string;
-    genres?: string[];
-  }[];
-}
-
-export const EXPANDED_TAXONOMY: Record<CategoryKey, CategoryNode> = {
-  music: {
-    key: "music",
-    label: "Music",
-    subcategories: [
-      { key: "pop", label: "Pop" },
-      { key: "rock", label: "Rock", genres: ["Alternative", "Indie", "Hard Rock", "Classic Rock", "Punk"] },
-      { key: "hiphop", label: "Hip-Hop / Rap", genres: ["Trap", "Drill", "Underground"] },
-      { key: "rnb", label: "R&B / Soul", genres: ["Neo-Soul", "Funk", "Disco"] },
-      { key: "country", label: "Country", genres: ["Americana", "Bluegrass", "Singer-Songwriter"] },
-      { key: "electronic", label: "Electronic", genres: ["EDM", "House", "Techno", "Drum & Bass", "Dubstep"] },
-      { key: "jazz", label: "Jazz & Blues", genres: ["Jazz", "Blues", "Big Band"] },
-      { key: "classical", label: "Classical", genres: ["Orchestral", "Opera", "Chamber Music"] },
-      { key: "latin", label: "Latin", genres: ["Reggaeton", "Salsa", "Bachata", "Cumbia"] },
-      { key: "kpop", label: "K-Pop" },
-      { key: "reggae", label: "Reggae & Caribbean", genres: ["Dancehall", "Ska"] },
-      { key: "world", label: "World Music", genres: ["African", "Asian", "Celtic", "Middle Eastern"] },
-      { key: "gospel", label: "Gospel & Spiritual" },
-      { key: "metal", label: "Metal", genres: ["Heavy Metal", "Hardcore"] },
-      { key: "folk", label: "Folk" },
-      { key: "indie", label: "Indie & Alternative" },
-    ],
-  },
-
-  sports: {
-    key: "sports",
-    label: "Sports",
-    subcategories: [
-      { key: "football", label: "Football", genres: ["NFL", "College Football", "Indoor"] },
-      { key: "basketball", label: "Basketball", genres: ["NBA", "WNBA", "College", "G League"] },
-      { key: "baseball", label: "Baseball", genres: ["MLB", "Minor League", "College"] },
-      { key: "hockey", label: "Hockey", genres: ["NHL", "College", "PWHL"] },
-      { key: "soccer", label: "Soccer", genres: ["MLS", "NWSL", "USL", "International", "World Cup"] },
-      { key: "tennis", label: "Tennis", genres: ["ATP", "WTA", "Grand Slams", "Exhibitions"] },
-      { key: "golf", label: "Golf", genres: ["PGA", "LPGA", "Majors"] },
-      { key: "mma", label: "MMA & Fighting", genres: ["UFC", "Wrestling", "Boxing"] },
-      { key: "boxing", label: "Boxing" },
-      { key: "racing", label: "Racing", genres: ["NASCAR", "Formula 1", "IndyCar", "Horse Racing"] },
-      { key: "volleyball", label: "Volleyball", genres: ["Professional", "Beach Volleyball"] },
-      { key: "lacrosse", label: "Lacrosse", genres: ["MLL", "NLL", "College"] },
-      { key: "cricket", label: "Cricket" },
-      { key: "rugby", label: "Rugby" },
-      { key: "other", label: "Other Sports", genres: ["Cycling", "Skateboarding", "Esports", "Track & Field"] },
-    ],
-  },
-
-  comedy: {
-    key: "comedy",
-    label: "Comedy",
-    subcategories: [
-      { key: "standup", label: "Stand-Up Comedy" },
-      { key: "improv", label: "Improv & Sketch" },
-      { key: "sketch", label: "Sketch Comedy" },
-      { key: "tours", label: "Comedy Tours" },
-      { key: "festivals", label: "Comedy Festivals" },
-    ],
-  },
-
-  theater: {
-    key: "theater",
-    label: "Theater & Performance",
-    subcategories: [
-      { key: "broadway", label: "Broadway & Off-Broadway" },
-      { key: "plays", label: "Plays & Musicals" },
-      { key: "musicals", label: "Musicals" },
-      { key: "dance", label: "Dance & Ballet" },
-      { key: "opera", label: "Opera" },
-      { key: "touring", label: "Touring Productions" },
-    ],
-  },
-
-  arts: {
-    key: "arts",
-    label: "Arts & Culture",
-    subcategories: [
-      { key: "museums", label: "Museums & Exhibitions" },
-      { key: "galleries", label: "Galleries & Exhibits" },
-      { key: "exhibitions", label: "Art Exhibitions" },
-      { key: "lectures", label: "Lectures & Talks" },
-      { key: "cultural", label: "Cultural Events" },
-      { key: "performances", label: "Performances & Readings" },
-    ],
-  },
-
-  film: {
-    key: "film",
-    label: "Film & Media",
-    subcategories: [
-      { key: "festivals", label: "Film Festivals" },
-      { key: "screenings", label: "Special Screenings" },
-      { key: "documentaries", label: "Documentaries" },
-      { key: "anime", label: "Anime & Animation" },
-      { key: "conventions", label: "Conventions & Events" },
-    ],
-  },
-
-  festivals: {
-    key: "festivals",
-    label: "Festivals",
-    subcategories: [
-      { key: "music", label: "Music Festivals" },
-      { key: "food", label: "Food & Wine Festivals" },
-      { key: "cultural", label: "Cultural Festivals" },
-      { key: "arts", label: "Arts Festivals" },
-      { key: "film", label: "Film Festivals" },
-      { key: "comedy", label: "Comedy Festivals" },
-      { key: "family", label: "Family Festivals" },
-    ],
-  },
-
-  family: {
-    key: "family",
-    label: "Family Events",
-    subcategories: [
-      { key: "shows", label: "Family Shows" },
-      { key: "theater", label: "Children's Theater" },
-      { key: "festivals", label: "Family Festivals" },
-      { key: "educational", label: "Educational Events" },
-      { key: "attractions", label: "Interactive Attractions" },
-    ],
-  },
+  description?: string;
+  keywords: string[];
+  providerCategories?: string[];
 };
 
-export function getCategoryLabel(key: CategoryKey): string {
-  return EXPANDED_TAXONOMY[key]?.label ?? key;
+export const EXPANDED_TAXONOMY: PassrCategory[] = [
+  {
+    id: "music",
+    label: "Music",
+    description: "Concerts, tours, live performances, and more.",
+    keywords: [
+      "music",
+      "concert",
+      "tour",
+      "live music",
+      "singer",
+      "band",
+      "artist",
+      "dj",
+      "festival",
+      "performance",
+      "rock",
+      "pop",
+      "hip hop",
+      "hip-hop",
+      "rap",
+      "r&b",
+      "soul",
+      "jazz",
+      "blues",
+      "country",
+      "folk",
+      "indie",
+      "alternative",
+      "metal",
+      "punk",
+      "hardcore",
+      "emo",
+      "electronic",
+      "edm",
+      "house",
+      "techno",
+      "trance",
+      "reggae",
+      "dancehall",
+      "afrobeats",
+      "latin",
+      "reggaeton",
+      "salsa",
+      "bachata",
+      "k-pop",
+      "j-pop",
+      "classical",
+      "orchestra",
+      "symphony",
+      "opera",
+      "acoustic",
+      "bluegrass",
+      "gospel",
+      "christian",
+      "tribute",
+      "cover band",
+    ],
+    providerCategories: ["Music"],
+  },
+
+  {
+    id: "sports",
+    label: "Sports",
+    description: "Games, matches, races, fights, and live competition.",
+    keywords: [
+      "sports",
+      "football",
+      "nfl",
+      "college football",
+      "basketball",
+      "nba",
+      "wnba",
+      "college basketball",
+      "baseball",
+      "mlb",
+      "minor league baseball",
+      "hockey",
+      "nhl",
+      "soccer",
+      "mls",
+      "nwsl",
+      "college soccer",
+      "tennis",
+      "golf",
+      "nascar",
+      "racing",
+      "formula 1",
+      "f1",
+      "motorsport",
+      "boxing",
+      "mma",
+      "ufc",
+      "wrestling",
+      "wwe",
+      "aew",
+      "lacrosse",
+      "rugby",
+      "cricket",
+      "volleyball",
+      "softball",
+      "field hockey",
+      "gymnastics",
+      "swimming",
+      "track",
+      "horse racing",
+      "rodeo",
+      "bull riding",
+      "esports",
+      "gaming",
+      "arena football",
+      "minor league",
+      "college sports",
+      "olympic",
+    ],
+    providerCategories: ["Sports"],
+  },
+
+  {
+    id: "festivals",
+    label: "Festivals",
+    description: "Music festivals, cultural events, food festivals, and more.",
+    keywords: [
+      "festival",
+      "music festival",
+      "food festival",
+      "film festival",
+      "cultural festival",
+      "art festival",
+      "street festival",
+      "community festival",
+      "beer festival",
+      "wine festival",
+      "literary festival",
+      "comedy festival",
+      "dance festival",
+      "carnival",
+      "fair",
+      "county fair",
+      "state fair",
+      "celebration",
+      "outdoor festival",
+    ],
+    providerCategories: ["Music"],
+  },
+
+  {
+    id: "comedy",
+    label: "Comedy",
+    description: "Stand-up, improv, sketch, and comedy shows.",
+    keywords: [
+      "comedy",
+      "stand up",
+      "stand-up",
+      "comedian",
+      "improv",
+      "improvisation",
+      "sketch comedy",
+      "humor",
+      "roast",
+      "comedy show",
+      "comedy tour",
+      "satire",
+    ],
+    providerCategories: ["Arts & Theatre"],
+  },
+
+  {
+    id: "theater",
+    label: "Theater",
+    description: "Plays, musicals, Broadway, opera, and live theater.",
+    keywords: [
+      "theater",
+      "theatre",
+      "broadway",
+      "musical",
+      "play",
+      "drama",
+      "opera",
+      "operetta",
+      "stage",
+      "performing arts",
+      "touring production",
+      "west end",
+      "off-broadway",
+      "family theater",
+      "children's theater",
+    ],
+    providerCategories: ["Arts & Theatre"],
+  },
+
+  {
+    id: "dance",
+    label: "Dance",
+    description: "Dance performances, ballet, contemporary, and more.",
+    keywords: [
+      "dance",
+      "ballet",
+      "contemporary dance",
+      "modern dance",
+      "hip hop dance",
+      "tap",
+      "jazz dance",
+      "folk dance",
+      "dance company",
+      "dance performance",
+      "choreography",
+    ],
+    providerCategories: ["Arts & Theatre"],
+  },
+
+  {
+    id: "family",
+    label: "Family",
+    description: "Events and experiences for kids and families.",
+    keywords: [
+      "family",
+      "kids",
+      "children",
+      "childrens",
+      "all ages",
+      "family show",
+      "family entertainment",
+      "circus",
+      "puppet",
+      "puppetry",
+      "magic",
+      "children's theater",
+      "sesame",
+      "disney",
+      "nickelodeon",
+      "mascot",
+    ],
+    providerCategories: ["Family"],
+  },
+
+  {
+    id: "arts-culture",
+    label: "Arts & Culture",
+    description: "Museums, exhibitions, galleries, and cultural experiences.",
+    keywords: [
+      "arts",
+      "culture",
+      "museum",
+      "gallery",
+      "exhibition",
+      "exhibit",
+      "installation",
+      "sculpture",
+      "painting",
+      "photography",
+      "visual arts",
+      "spoken word",
+      "poetry",
+      "literature",
+      "author",
+      "book",
+      "cultural",
+      "heritage",
+    ],
+    providerCategories: ["Arts & Theatre"],
+  },
+
+  {
+    id: "film-media",
+    label: "Film & Media",
+    description: "Movies, screenings, premieres, and media events.",
+    keywords: [
+      "film",
+      "movie",
+      "cinema",
+      "screening",
+      "premiere",
+      "film festival",
+      "documentary",
+      "anime",
+      "animation",
+      "television",
+      "tv",
+      "media",
+      "director",
+      "actor",
+      "cast",
+      "live podcast",
+      "podcast",
+      "recording",
+    ],
+    providerCategories: ["Film"],
+  },
+
+  {
+    id: "nightlife",
+    label: "Nightlife",
+    description: "Clubs, DJs, dance parties, and late-night events.",
+    keywords: [
+      "nightlife",
+      "club",
+      "nightclub",
+      "dj",
+      "dance party",
+      "rave",
+      "house party",
+      "electronic",
+      "edm",
+      "techno",
+      "house music",
+      "late night",
+      "after party",
+    ],
+    providerCategories: ["Music"],
+  },
+];
+
+/**
+ * Find a category by its Passr ID.
+ */
+export function getTaxonomyCategory(
+  id: string,
+): PassrCategory | undefined {
+  return EXPANDED_TAXONOMY.find(
+    (category) => category.id === id,
+  );
 }
 
-export function getSubcategoryLabel(category: CategoryKey, subKey: string): string {
-  const sub = EXPANDED_TAXONOMY[category]?.subcategories?.find((s) => s.key === subKey);
-  return sub?.label ?? subKey;
+/**
+ * Match arbitrary provider/category text to the
+ * closest Passr category.
+ */
+export function normalizeTaxonomyCategory(
+  value: string | undefined,
+): string | undefined {
+  if (!value) return undefined;
+
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9&+]+/g, " ")
+    .trim();
+
+  if (!normalized) return undefined;
+
+  for (const category of EXPANDED_TAXONOMY) {
+    if (
+      category.id === normalized ||
+      category.label.toLowerCase() === normalized
+    ) {
+      return category.id;
+    }
+
+    if (
+      category.keywords.some((keyword) =>
+        normalized.includes(
+          keyword
+            .toLowerCase()
+            .replace(/[^a-z0-9&+]+/g, " ")
+            .trim(),
+        ),
+      )
+    ) {
+      return category.id;
+    }
+  }
+
+  return undefined;
 }
 
-export function getAllSubcategories(category: CategoryKey): Array<{ key: string; label: string }> {
-  return (
-    EXPANDED_TAXONOMY[category]?.subcategories?.map((s) => ({ key: s.key, label: s.label })) ?? []
+/**
+ * Return all categories whose keyword set overlaps
+ * with a provider's title/genre/subgenre text.
+ */
+export function matchTaxonomyCategories(
+  values: Array<string | undefined>,
+): string[] {
+  const text = values
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9&+]+/g, " ");
+
+  if (!text) return [];
+
+  const matches: string[] = [];
+
+  for (const category of EXPANDED_TAXONOMY) {
+    const matched = category.keywords.some(
+      (keyword) => {
+        const normalizedKeyword = keyword
+          .toLowerCase()
+          .replace(/[^a-z0-9&+]+/g, " ")
+          .trim();
+
+        return (
+          normalizedKeyword.length > 0 &&
+          text.includes(normalizedKeyword)
+        );
+      },
+    );
+
+    if (matched) {
+      matches.push(category.id);
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Used by UI/category selectors.
+ */
+export function getTaxonomyOptions() {
+  return EXPANDED_TAXONOMY.map(
+    ({ id, label, description }) => ({
+      id,
+      label,
+      description,
+    }),
   );
 }
