@@ -9,8 +9,8 @@ import {
 export type EnhancedDiscoveryOptions = {
   profile?: PassrProfile | null;
 
-  /*
-   * `term` is the canonical search field.
+  /**
+   * Canonical search field.
    *
    * Example:
    * term: "Olivia Dean"
@@ -22,11 +22,8 @@ export type EnhancedDiscoveryOptions = {
   location?: string;
   radiusMiles?: number;
 
-  /*
-   * Search pagination.
-   *
-   * Discovery fetches a larger live-event pool first,
-   * then searchEvents slices that pool for the UI.
+  /**
+   * UI pagination.
    */
   page?: number;
   size?: number;
@@ -44,15 +41,6 @@ export type DiscoveryResult = {
   }>;
 };
 
-/**
- * Canonical higher-level discovery API.
- *
- * `discovery.ts` owns provider fetching, pagination,
- * validation, deduplication, filtering, and ranking.
- *
- * This file only turns that candidate pool into the
- * structures consumed by the UI.
- */
 export async function getEnhancedDiscovery(
   options: EnhancedDiscoveryOptions = {},
 ): Promise<DiscoveryResult> {
@@ -82,10 +70,6 @@ export async function getEnhancedDiscovery(
   };
 }
 
-/**
- * Backwards-compatible alias for callers that use
- * the older discovery naming.
- */
 export async function discoverEvents(
   options: EnhancedDiscoveryOptions = {},
 ): Promise<PassrEvent[]> {
@@ -95,10 +79,6 @@ export async function discoverEvents(
   return result.events;
 }
 
-/**
- * Returns the personalized "Suggested for you"
- * rail.
- */
 export async function getSuggestedEvents(
   profile: PassrProfile | null,
 ): Promise<PassrEvent[]> {
@@ -110,12 +90,6 @@ export async function getSuggestedEvents(
   return result.suggested;
 }
 
-/**
- * Returns the current trending rail.
- *
- * Trending is still constrained by explicit user
- * preferences when preferences exist.
- */
 export async function getTrendingEvents(
   profile: PassrProfile | null,
 ): Promise<PassrEvent[]> {
@@ -127,9 +101,6 @@ export async function getTrendingEvents(
   return result.trending;
 }
 
-/**
- * Returns category-specific rails.
- */
 export async function getCategoryRails(
   profile: PassrProfile | null,
 ): Promise<
@@ -148,31 +119,34 @@ export async function getCategoryRails(
 }
 
 /**
- * Search uses the same real-data discovery pipeline as
- * homepage recommendations.
+ * Search contract used by the search page.
  *
- * The discovery layer fetches a larger candidate pool,
- * then this function applies the UI's requested page
- * and page size.
+ * `fetchDiscoveryPool()` gets the live candidate pool.
+ * This function is responsible only for UI pagination.
  */
 export async function searchEvents(
-  options: EnhancedDiscoveryOptions,
+  options: EnhancedDiscoveryOptions = {},
 ): Promise<{
   events: PassrEvent[];
   totalCount: number;
   hasMore: boolean;
+  page: number;
+  size: number;
 }> {
   const result =
     await getEnhancedDiscovery(options);
 
   const page = Math.max(
     0,
-    options.page ?? 0,
+    Math.floor(options.page ?? 0),
   );
 
-  const size = Math.max(
-    1,
-    options.size ?? 20,
+  const size = Math.min(
+    50,
+    Math.max(
+      1,
+      Math.floor(options.size ?? 20),
+    ),
   );
 
   const start = page * size;
@@ -184,7 +158,12 @@ export async function searchEvents(
 
   return {
     events,
-    totalCount: result.events.length,
-    hasMore: start + size < result.events.length,
+    totalCount:
+      result.events.length,
+    hasMore:
+      start + size <
+      result.events.length,
+    page,
+    size,
   };
 }
