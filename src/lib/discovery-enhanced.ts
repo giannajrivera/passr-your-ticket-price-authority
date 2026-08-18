@@ -9,22 +9,17 @@ import {
 export type EnhancedDiscoveryOptions = {
   profile?: PassrProfile | null;
 
-  /**
-   * Canonical search field.
-   *
-   * Example:
-   * term: "Olivia Dean"
-   */
   term?: string;
-
   category?: string;
   subcategory?: string;
+
+  /**
+   * Explicit search location overrides the
+   * profile location.
+   */
   location?: string;
   radiusMiles?: number;
 
-  /**
-   * UI pagination.
-   */
   page?: number;
   size?: number;
 };
@@ -44,23 +39,26 @@ export type DiscoveryResult = {
 export async function getEnhancedDiscovery(
   options: EnhancedDiscoveryOptions = {},
 ): Promise<DiscoveryResult> {
-  const profile = options.profile ?? null;
+  const profile =
+    options.profile ?? null;
 
-  const events = await fetchDiscoveryPool(
-    profile,
-    {
-      term: options.term,
-      category: options.category,
-      subcategory: options.subcategory,
-      location: options.location,
-      radiusMiles: options.radiusMiles,
-    },
-  );
+  const events =
+    await fetchDiscoveryPool(
+      profile,
+      {
+        term: options.term,
+        category: options.category,
+        subcategory: options.subcategory,
+        location: options.location,
+        radiusMiles: options.radiusMiles,
+      },
+    );
 
-  const rails = buildHomeRails(
-    events,
-    profile,
-  );
+  const rails =
+    buildHomeRails(
+      events,
+      profile,
+    );
 
   return {
     events,
@@ -74,7 +72,9 @@ export async function discoverEvents(
   options: EnhancedDiscoveryOptions = {},
 ): Promise<PassrEvent[]> {
   const result =
-    await getEnhancedDiscovery(options);
+    await getEnhancedDiscovery(
+      options,
+    );
 
   return result.events;
 }
@@ -118,43 +118,36 @@ export async function getCategoryRails(
   return result.categories;
 }
 
-/**
- * Search contract used by the search page.
- *
- * `fetchDiscoveryPool()` gets the live candidate pool.
- * This function is responsible only for UI pagination.
- */
 export async function searchEvents(
-  options: EnhancedDiscoveryOptions = {},
+  options: EnhancedDiscoveryOptions,
 ): Promise<{
   events: PassrEvent[];
   totalCount: number;
   hasMore: boolean;
-  page: number;
-  size: number;
 }> {
   const result =
-    await getEnhancedDiscovery(options);
+    await getEnhancedDiscovery(
+      options,
+    );
 
   const page = Math.max(
     0,
-    Math.floor(options.page ?? 0),
+    options.page ?? 0,
   );
 
-  const size = Math.min(
-    50,
-    Math.max(
-      1,
-      Math.floor(options.size ?? 20),
-    ),
+  const size = Math.max(
+    1,
+    options.size ?? 20,
   );
 
-  const start = page * size;
+  const start =
+    page * size;
 
-  const events = result.events.slice(
-    start,
-    start + size,
-  );
+  const events =
+    result.events.slice(
+      start,
+      start + size,
+    );
 
   return {
     events,
@@ -163,7 +156,5 @@ export async function searchEvents(
     hasMore:
       start + size <
       result.events.length,
-    page,
-    size,
   };
 }
