@@ -5,30 +5,175 @@ import { ChevronLeft, Loader2, Search } from "lucide-react";
 import { money } from "@/lib/mock-data";
 import { searchEvents } from "@/lib/discovery-enhanced";
 import type { PassrEvent } from "@/lib/types";
-import { getProfile } from "@/lib/profile";
 import { EXPANDED_TAXONOMY } from "@/lib/taxonomy-expanded";
 
 import logo from "@/assets/passr-logo.png.asset.json";
 
 /**
- * CategoryKey is derived directly from the taxonomy object.
+ * Keep the search route category as a string.
  *
- * This avoids importing CategoryKey from taxonomy-expanded.ts,
- * because that file does not currently export the type.
+ * EXPANDED_TAXONOMY is currently typed as an array in the project,
+ * so using `keyof typeof EXPANDED_TAXONOMY` here can incorrectly
+ * produce `number` as a possible key.
  */
-type CategoryKey = keyof typeof EXPANDED_TAXONOMY;
+type CategoryKey = string;
 
 type Subcategory = {
   key: string;
   label: string;
 };
 
+type CategoryEntry = {
+  key: string;
+  label: string;
+};
+
 /**
- * Reads subcategories from the existing taxonomy without requiring
- * taxonomy-expanded.ts to export a separate getAllSubcategories helper.
+ * Convert the existing taxonomy into a simple list that this route
+ * can safely consume regardless of whether the taxonomy is represented
+ * as an array or object.
  */
-function getAllSubcategories(category: CategoryKey): Subcategory[] {
-  const categoryData = EXPANDED_TAXONOMY[category] as unknown;
+function getCategoryEntries(): CategoryEntry[] {
+  const taxonomy = EXPANDED_TAXONOMY as unknown;
+
+  if (Array.isArray(taxonomy)) {
+    return taxonomy
+      .map((item: unknown): CategoryEntry | null => {
+        if (
+          typeof item !== "object" ||
+          item === null
+        ) {
+          return null;
+        }
+
+        const category = item as {
+          key?: unknown;
+          id?: unknown;
+          slug?: unknown;
+          label?: unknown;
+          name?: unknown;
+        };
+
+        const key =
+          typeof category.key === "string"
+            ? category.key
+            : typeof category.id === "string"
+              ? category.id
+              : typeof category.slug === "string"
+                ? category.slug
+                : undefined;
+
+        const label =
+          typeof category.label === "string"
+            ? category.label
+            : typeof category.name === "string"
+              ? category.name
+              : undefined;
+
+        if (!key) {
+          return null;
+        }
+
+        return {
+          key,
+          label: label ?? key,
+        };
+      })
+      .filter(
+        (item): item is CategoryEntry =>
+          item !== null,
+      );
+  }
+
+  if (
+    typeof taxonomy !== "object" ||
+    taxonomy === null
+  ) {
+    return [];
+  }
+
+  return Object.entries(
+    taxonomy as Record<string, unknown>,
+  )
+    .map(
+      ([key, value]): CategoryEntry | null => {
+        if (
+          typeof value !== "object" ||
+          value === null
+        ) {
+          return {
+            key,
+            label: key,
+          };
+        }
+
+        const category = value as {
+          label?: unknown;
+          name?: unknown;
+        };
+
+        const label =
+          typeof category.label === "string"
+            ? category.label
+            : typeof category.name === "string"
+              ? category.name
+              : key;
+
+        return {
+          key,
+          label,
+        };
+      },
+    )
+    .filter(
+      (item): item is CategoryEntry =>
+        item !== null,
+    );
+}
+
+/**
+ * Get subcategories for a selected category.
+ */
+function getAllSubcategories(
+  categoryKey: CategoryKey,
+): Subcategory[] {
+  const taxonomy = EXPANDED_TAXONOMY as unknown;
+
+  let categoryData: unknown;
+
+  if (Array.isArray(taxonomy)) {
+    const found = taxonomy.find(
+      (item: unknown) => {
+        if (
+          typeof item !== "object" ||
+          item === null
+        ) {
+          return false;
+        }
+
+        const category = item as {
+          key?: unknown;
+          id?: unknown;
+          slug?: unknown;
+        };
+
+        return (
+          category.key === categoryKey ||
+          category.id === categoryKey ||
+          category.slug === categoryKey
+        );
+      },
+    );
+
+    categoryData = found;
+  } else if (
+    typeof taxonomy === "object" &&
+    taxonomy !== null
+  ) {
+    categoryData = (
+      taxonomy as Record<string, unknown>
+    )[categoryKey];
+  }
 
   if (
     typeof categoryData !== "object" ||
@@ -46,48 +191,63 @@ function getAllSubcategories(category: CategoryKey): Subcategory[] {
   }
 
   return data.subcategories
-    .map((sub: unknown): Subcategory | null => {
-      if (
-        typeof sub !== "object" ||
-        sub === null
-      ) {
-        return null;
-      }
+    .map(
+      (sub: unknown): Subcategory | null => {
+        if (
+          typeof sub !== "object" ||
+          sub === null
+        ) {
+          return null;
+        }
 
-      const item = sub as {
-        key?: unknown;
-        label?: unknown;
-        id?: unknown;
-        name?: unknown;
-      };
+        const item = sub as {
+          key?: unknown;
+          label?: unknown;
+          id?: unknown;
+          name?: unknown;
+        };
 
-      const key =
-        typeof item.key === "string"
-          ? item.key
-          : typeof item.id === "string"
-            ? item.id
-            : undefined;
+        const key =
+          typeof item.key === "string"
+            ? item.key
+            : typeof item.id === "string"
+              ? item.id
+              : undefined;
 
-      const label =
-        typeof item.label === "string"
-          ? item.label
-          : typeof item.name === "string"
-            ? item.name
-            : undefined;
+        const label =
+          typeof item.label === "string"
+            ? item.label
+            : typeof item.name === "string"
+              ? item.name
+              : undefined;
 
-      if (!key || !label) {
-        return null;
-      }
+        if (!key || !label) {
+          return null;
+        }
 
-      return {
-        key,
-        label,
-      };
-    })
+        return {
+          key,
+          label,
+        };
+      },
+    )
     .filter(
       (sub): sub is Subcategory =>
         sub !== null,
     );
+}
+
+/**
+ * Get the display label for a category.
+ */
+function getCategoryLabel(
+  categoryKey: CategoryKey,
+): string {
+  const category = getCategoryEntries().find(
+    (item) => item.key === categoryKey,
+  );
+
+  return category?.label ?? categoryKey;
 }
 
 interface SearchParams {
@@ -107,9 +267,8 @@ export const Route = createFileRoute("/search")({
         : undefined;
 
     const category =
-      typeof search["category"] === "string" &&
-      search["category"] in EXPANDED_TAXONOMY
-        ? (search["category"] as CategoryKey)
+      typeof search["category"] === "string"
+        ? search["category"]
         : undefined;
 
     const subcategory =
@@ -141,8 +300,6 @@ function SearchResults() {
   const search = useSearch({
     from: Route.fullPath,
   });
-
-  const profile = getProfile();
 
   const [q, setQ] = useState(
     search.q ?? "",
@@ -194,10 +351,14 @@ function SearchResults() {
           subcategory;
       }
 
-      return searchEvents(
-        filters,
-        profile,
-      );
+      /*
+       * searchEvents accepts one options object.
+       *
+       * It already receives the profile through the
+       * discovery pipeline where appropriate, so do not
+       * pass profile as a second argument.
+       */
+      return searchEvents(filters);
     },
 
     enabled: Boolean(
@@ -208,6 +369,9 @@ function SearchResults() {
   const subcategories = category
     ? getAllSubcategories(category)
     : [];
+
+  const categories =
+    getCategoryEntries();
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl bg-background pb-24 text-foreground">
@@ -258,26 +422,15 @@ function SearchResults() {
             </h3>
 
             <div className="flex flex-wrap gap-2">
-              {Object.entries(
-                EXPANDED_TAXONOMY,
-              ).map(([key, cat]) => {
-                const categoryKey =
-                  key as CategoryKey;
-
-                const categoryData =
-                  cat as {
-                    label?: string;
-                  };
-
-                return (
+              {categories.map(
+                (cat) => (
                   <button
-                    key={key}
+                    key={cat.key}
                     onClick={() => {
                       setCategory(
-                        category ===
-                          categoryKey
+                        category === cat.key
                           ? undefined
-                          : categoryKey,
+                          : cat.key,
                       );
 
                       setSubcategory(
@@ -287,17 +440,15 @@ function SearchResults() {
                       setPage(0);
                     }}
                     className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      category ===
-                      categoryKey
+                      category === cat.key
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-foreground hover:border-primary/50"
                     }`}
                   >
-                    {categoryData.label ??
-                      key}
+                    {cat.label}
                   </button>
-                );
-              })}
+                ),
+              )}
             </div>
           </div>
 
@@ -305,13 +456,9 @@ function SearchResults() {
           {subcategories.length > 0 && (
             <div>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {(
-                  EXPANDED_TAXONOMY[
-                    category!
-                  ] as {
-                    label?: string;
-                  }
-                )?.label ?? ""}
+                {getCategoryLabel(
+                  category!,
+                )}
               </h3>
 
               <div className="flex flex-wrap gap-2">
@@ -363,19 +510,18 @@ function SearchResults() {
           !query.isError &&
           query.data && (
             <>
-              {query.data.events.length >
-              0 ? (
+              {query.data.length > 0 ? (
                 <div className="space-y-6">
                   <p className="text-sm text-muted-foreground">
                     Found{" "}
-                    {query.data.events.length}{" "}
+                    {query.data.length}{" "}
                     {q
                       ? `results for "${q}"`
                       : "results"}
                   </p>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {query.data.events.map(
+                    {query.data.map(
                       (event) => (
                         <SearchEventCard
                           key={event.id}
@@ -386,7 +532,7 @@ function SearchResults() {
                   </div>
 
                   {/* Pagination */}
-                  {query.data.events.length >=
+                  {query.data.length >=
                     20 && (
                     <div className="flex justify-center gap-3 pt-8">
                       {page > 0 && (
