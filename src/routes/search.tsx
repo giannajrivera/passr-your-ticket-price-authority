@@ -236,26 +236,26 @@ export const Route = createFileRoute(
     search: Record<string, unknown>,
   ): SearchParams => {
     const q =
-      typeof search.q === "string"
-        ? search.q
+      typeof search['q'] === "string"
+        ? search['q']
         : undefined;
 
     const category =
-      typeof search.category ===
+      typeof search['category'] ===
       "string"
-        ? search.category
+        ? search['category']
         : undefined;
 
     const subcategory =
-      typeof search.subcategory ===
+      typeof search['subcategory'] ===
       "string"
-        ? search.subcategory
+        ? search['subcategory']
         : undefined;
 
     const location =
-      typeof search.location ===
+      typeof search['location'] ===
       "string"
-        ? search.location
+        ? search['location']
         : undefined;
 
     return {
@@ -336,12 +336,14 @@ function SearchResults() {
     ],
 
     queryFn: () => {
+      const term = debouncedQ.trim();
+      const loc = location.trim();
+
       return searchEvents({
-        term: debouncedQ.trim() || undefined,
-        category,
-        subcategory,
-        location:
-          location.trim() || undefined,
+        ...(term ? { term } : {}),
+        ...(category ? { category } : {}),
+        ...(subcategory ? { subcategory } : {}),
+        ...(loc ? { location: loc } : {}),
         profile,
         page: 0,
         size: 20,
@@ -657,13 +659,10 @@ function SearchResults() {
             <div>
 
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {getCategoryData(
-                  category!,
-                )?.label ??
-                  getCategoryData(
-                    category!,
-                  )?.name ??
-                  "Explore"}
+                {categories.find(
+                  (item) =>
+                    item.key === category,
+                )?.label ?? "Explore"}
               </h3>
 
               <div className="flex flex-wrap gap-2">
