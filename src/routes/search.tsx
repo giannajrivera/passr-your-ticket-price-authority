@@ -439,9 +439,15 @@ function SearchResults() {
 
     queryFn: () =>
       searchEvents({
-        term: q.trim() || undefined,
-        category,
-        subcategory,
+        ...(q.trim()
+          ? { term: q.trim() }
+          : {}),
+        ...(category
+          ? { category }
+          : {}),
+        ...(subcategory
+          ? { subcategory }
+          : {}),
         page,
         size: 20,
         profile,
