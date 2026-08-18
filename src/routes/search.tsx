@@ -70,27 +70,27 @@ export const Route =
       >,
     ): SearchParams => {
       const q =
-        typeof search.q ===
+        typeof search['q'] ===
         "string"
-          ? search.q
+          ? search['q']
           : undefined;
 
       const category =
-        typeof search.category ===
+        typeof search['category'] ===
         "string"
-          ? search.category
+          ? search['category']
           : undefined;
 
       const subcategory =
-        typeof search.subcategory ===
+        typeof search['subcategory'] ===
         "string"
-          ? search.subcategory
+          ? search['subcategory']
           : undefined;
 
       const location =
-        typeof search.location ===
+        typeof search['location'] ===
         "string"
-          ? search.location
+          ? search['location']
           : undefined;
 
       return {
@@ -1044,4 +1044,3 @@ function SearchEventCard({
     </Link>
   );
 }
-```

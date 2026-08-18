@@ -2,10 +2,10 @@ import type { PassrProfile } from "@/lib/profile";
 import type { PassrEvent } from "@/lib/types";
 import {
   facetsFor,
-  getPreferences,
   resolveFacets,
   type EventPreferences,
 } from "@/lib/preferences";
+import { getPreferences } from "@/lib/profile";
 import { deduplicateEvents } from "@/lib/event-utils";
 
 /**
@@ -1722,4 +1722,3 @@ export function buildHomeRails(
     categories,
   };
 }
-```
