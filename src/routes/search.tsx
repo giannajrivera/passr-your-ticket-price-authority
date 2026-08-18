@@ -220,7 +220,7 @@ function getAllSubcategories(
       ): item is SubcategoryOption =>
         item !== null,
     );
-  }
+}
 
 interface SearchParams {
   q?: string;
@@ -310,19 +310,9 @@ function SearchResults() {
     useState(search.q ?? "");
 
   /*
-   * Debounce the search input.
-   *
-   * This lets someone type:
-   *
-   * o
-   * ol
-   * oli
-   * oliv
-   * olivi
-   * olivia
-   *
-   * without firing a Ticketmaster request for
-   * every single keystroke.
+   * Debounce the search input so Passr does not
+   * send a Ticketmaster request for every
+   * individual keystroke.
    */
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -380,11 +370,8 @@ function SearchResults() {
     );
 
   /*
-   * Suggestions come directly from the same
-   * live event data we're already retrieving.
-   *
-   * This means the suggestion system is not
-   * inventing artists or using fake data.
+   * Live suggestions use the same real event
+   * data already returned by the discovery system.
    */
   const suggestions =
     useMemo(() => {
@@ -482,9 +469,11 @@ function SearchResults() {
           </div>
 
           {/* SEARCH */}
+
           <div className="relative mt-4">
 
             <div className="relative">
+
               <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
 
               <input
@@ -496,6 +485,7 @@ function SearchResults() {
                   setQ(
                     event.target.value,
                   );
+
                   setShowSuggestions(
                     true,
                   );
@@ -536,6 +526,7 @@ function SearchResults() {
             </div>
 
             {/* LIVE SEARCH SUGGESTIONS */}
+
             {showSuggestions &&
               q.trim().length >= 2 &&
               suggestions.length >
@@ -555,6 +546,7 @@ function SearchResults() {
                           e,
                         ) => {
                           e.preventDefault();
+
                           selectSuggestion(
                             event,
                           );
@@ -581,6 +573,7 @@ function SearchResults() {
                           <p className="truncate text-xs text-muted-foreground">
                             {event.venue ??
                               event.category}
+
                             {event.city
                               ? ` · ${event.city}`
                               : ""}
@@ -594,7 +587,9 @@ function SearchResults() {
           </div>
 
           {/* LOCATION */}
+
           <div className="relative mt-3">
+
             <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
             <input
@@ -607,18 +602,22 @@ function SearchResults() {
               placeholder="Where? Try New York, Los Angeles, Chicago..."
               className="w-full rounded-full border border-border bg-muted py-2.5 pl-11 pr-4 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
             />
+
           </div>
         </header>
 
-        {/* FILTERS */}
+        {/* CATEGORY FILTERS */}
+
         <div className="mb-8 space-y-5">
 
           <div>
+
             <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">
               Browse by category
             </h3>
 
             <div className="flex flex-wrap gap-2">
+
               {categories.map(
                 (item) => (
                   <button
@@ -647,12 +646,16 @@ function SearchResults() {
                   </button>
                 ),
               )}
+
             </div>
           </div>
+
+          {/* SUBCATEGORIES */}
 
           {subcategories.length >
             0 && (
             <div>
+
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 {getCategoryData(
                   category!,
@@ -664,6 +667,7 @@ function SearchResults() {
               </h3>
 
               <div className="flex flex-wrap gap-2">
+
                 {subcategories.map(
                   (sub) => (
                     <button
@@ -688,9 +692,11 @@ function SearchResults() {
                     </button>
                   ),
                 )}
+
               </div>
             </div>
           )}
+
         </div>
 
         {/* RESULTS */}
@@ -723,12 +729,14 @@ function SearchResults() {
                     {q
                       ? `results for "${q}"`
                       : "events"}
+
                     {location
                       ? ` near ${location}`
                       : ""}
                   </p>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
                     {events.map(
                       (event) => (
                         <SearchEventCard
@@ -737,7 +745,9 @@ function SearchResults() {
                         />
                       ),
                     )}
+
                   </div>
+
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-muted/40 px-6 py-8 text-center text-sm text-muted-foreground">
@@ -758,6 +768,7 @@ function SearchResults() {
               Search for an artist, event, venue, or browse the categories above.
             </div>
           )}
+
       </div>
     </div>
   );
@@ -776,6 +787,7 @@ function SearchEventCard({
       }}
       className="group block overflow-hidden rounded-2xl border border-border bg-card transition hover:border-primary/30 hover:shadow-lg"
     >
+
       {event.image ? (
         <img
           src={event.image}
@@ -790,6 +802,7 @@ function SearchEventCard({
       <div className="space-y-3 p-4">
 
         <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+
           <span>
             {event.category}
           </span>
@@ -797,6 +810,7 @@ function SearchEventCard({
           <span>
             {event.city}
           </span>
+
         </div>
 
         <h3 className="line-clamp-2 font-sans text-sm font-bold leading-tight">
@@ -809,6 +823,7 @@ function SearchEventCard({
         </div>
 
         <div className="flex items-center justify-between border-t border-border pt-2">
+
           <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             From
           </span>
@@ -821,8 +836,11 @@ function SearchEventCard({
                   event.startingAt,
                 )}
           </span>
+
         </div>
+
       </div>
     </Link>
   );
 }
+```
