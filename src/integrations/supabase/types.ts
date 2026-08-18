@@ -4,249 +4,377 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.15"
+  }
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          id: string;
-          name: string | null;
-          email: string | null;
-          phone: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id: string;
-          name?: string | null;
-          email?: string | null;
-          phone?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string | null;
-          email?: string | null;
-          phone?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-
-      user_preferences: {
-        Row: {
-          user_id: string;
-          preferences: Json;
-          updated_at: string;
-        };
-        Insert: {
-          user_id: string;
-          preferences?: Json;
-          updated_at?: string;
-        };
-        Update: {
-          user_id?: string;
-          preferences?: Json;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-
-      venues: {
-        Row: {
-          id: string;
-          provider: string;
-          provider_venue_id: string | null;
-          name: string;
-          city: string | null;
-          state: string | null;
-          country: string | null;
-          latitude: number | null;
-          longitude: number | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          provider: string;
-          provider_venue_id?: string | null;
-          name: string;
-          city?: string | null;
-          state?: string | null;
-          country?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          provider?: string;
-          provider_venue_id?: string | null;
-          name?: string;
-          city?: string | null;
-          state?: string | null;
-          country?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-
       events: {
         Row: {
-          id: string;
-          provider: string;
-          provider_event_id: string;
-          name: string;
-          description: string | null;
-          event_date: string | null;
-          event_time: string | null;
-          timezone: string | null;
-          venue_id: string | null;
-          venue_name: string | null;
-          city: string | null;
-          state: string | null;
-          country: string | null;
-          latitude: number | null;
-          longitude: number | null;
-          image_url: string | null;
-          ticket_url: string | null;
-          starting_price: number | null;
-          currency: string | null;
-          category: string | null;
-          subcategory: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+          category: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          currency: string | null
+          description: string | null
+          event_date: string | null
+          event_time: string | null
+          id: string
+          image_url: string | null
+          latitude: number | null
+          longitude: number | null
+          name: string
+          provider: string
+          provider_event_id: string
+          starting_price: number | null
+          state: string | null
+          subcategory: string | null
+          ticket_url: string | null
+          timezone: string | null
+          updated_at: string
+          venue_id: string | null
+          venue_name: string | null
+        }
         Insert: {
-          id?: string;
-          provider: string;
-          provider_event_id: string;
-          name: string;
-          description?: string | null;
-          event_date?: string | null;
-          event_time?: string | null;
-          timezone?: string | null;
-          venue_id?: string | null;
-          venue_name?: string | null;
-          city?: string | null;
-          state?: string | null;
-          country?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
-          image_url?: string | null;
-          ticket_url?: string | null;
-          starting_price?: number | null;
-          currency?: string | null;
-          category?: string | null;
-          subcategory?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          category?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          event_date?: string | null
+          event_time?: string | null
+          id?: string
+          image_url?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          provider: string
+          provider_event_id: string
+          starting_price?: number | null
+          state?: string | null
+          subcategory?: string | null
+          ticket_url?: string | null
+          timezone?: string | null
+          updated_at?: string
+          venue_id?: string | null
+          venue_name?: string | null
+        }
         Update: {
-          id?: string;
-          provider?: string;
-          provider_event_id?: string;
-          name?: string;
-          description?: string | null;
-          event_date?: string | null;
-          event_time?: string | null;
-          timezone?: string | null;
-          venue_id?: string | null;
-          venue_name?: string | null;
-          city?: string | null;
-          state?: string | null;
-          country?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
-          image_url?: string | null;
-          ticket_url?: string | null;
-          starting_price?: number | null;
-          currency?: string | null;
-          category?: string | null;
-          subcategory?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          category?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          event_date?: string | null
+          event_time?: string | null
+          id?: string
+          image_url?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          provider?: string
+          provider_event_id?: string
+          starting_price?: number | null
+          state?: string | null
+          subcategory?: string | null
+          ticket_url?: string | null
+          timezone?: string | null
+          updated_at?: string
+          venue_id?: string | null
+          venue_name?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "events_venue_id_fkey";
-            columns: ["venue_id"];
-            isOneToOne: false;
-            referencedRelation: "venues";
-            referencedColumns: ["id"];
+            foreignKeyName: "events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+          name?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       saved_events: {
         Row: {
-          id: string;
-          user_id: string;
-          event_id: string;
-          saved_price: number | null;
-          notify: boolean;
-          created_at: string;
-          updated_at: string;
-        };
+          created_at: string
+          event_id: string
+          id: string
+          notify: boolean
+          saved_price: number | null
+          updated_at: string
+          user_id: string
+        }
         Insert: {
-          id?: string;
-          user_id: string;
-          event_id: string;
-          saved_price?: number | null;
-          notify?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
+          created_at?: string
+          event_id: string
+          id?: string
+          notify?: boolean
+          saved_price?: number | null
+          updated_at?: string
+          user_id: string
+        }
         Update: {
-          id?: string;
-          user_id?: string;
-          event_id?: string;
-          saved_price?: number | null;
-          notify?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
+          created_at?: string
+          event_id?: string
+          id?: string
+          notify?: boolean
+          saved_price?: number | null
+          updated_at?: string
+          user_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "saved_events_event_id_fkey";
-            columns: ["event_id"];
-            isOneToOne: false;
-            referencedRelation: "events";
-            referencedColumns: ["id"];
+            foreignKeyName: "saved_events_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "saved_events_user_id_fkey";
-            columns: ["user_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
+            foreignKeyName: "saved_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-    };
-
+        ]
+      }
+      user_preferences: {
+        Row: {
+          preferences: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          preferences?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          preferences?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          provider: string
+          provider_venue_id: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          provider: string
+          provider_venue_id?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          provider?: string
+          provider_venue_id?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
     Views: {
-      [_ in never]: never;
-    };
-
+      [_ in never]: never
+    }
     Functions: {
-      [_ in never]: never;
-    };
-
+      [_ in never]: never
+    }
     Enums: {
-      [_ in never]: never;
-    };
-
+      [_ in never]: never
+    }
     CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
-};
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
