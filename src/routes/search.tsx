@@ -1044,4 +1044,3 @@ function SearchEventCard({
     </Link>
   );
 }
-```

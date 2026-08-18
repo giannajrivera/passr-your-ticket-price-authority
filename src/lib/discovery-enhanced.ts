@@ -187,4 +187,3 @@ export async function searchEvents(
       result.events.length,
   };
 }
-```

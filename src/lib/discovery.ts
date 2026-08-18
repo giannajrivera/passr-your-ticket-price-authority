@@ -1722,4 +1722,3 @@ export function buildHomeRails(
     categories,
   };
 }
-```
