@@ -544,7 +544,7 @@ async function fetchPaginatedQuery(
     const batch = await fetchTicketmasterBatch({
       ...baseParams,
       countryCode:
-        baseParams.countryCode ?? "US",
+        baseParams["countryCode"] ?? "US",
       page,
       size: DISCOVERY_PAGE_SIZE,
     });
