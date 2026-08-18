@@ -336,12 +336,14 @@ function SearchResults() {
     ],
 
     queryFn: () => {
+      const term = debouncedQ.trim();
+      const loc = location.trim();
+
       return searchEvents({
-        term: debouncedQ.trim() || undefined,
-        category,
-        subcategory,
-        location:
-          location.trim() || undefined,
+        ...(term ? { term } : {}),
+        ...(category ? { category } : {}),
+        ...(subcategory ? { subcategory } : {}),
+        ...(loc ? { location: loc } : {}),
         profile,
         page: 0,
         size: 20,
