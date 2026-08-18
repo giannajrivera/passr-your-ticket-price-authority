@@ -54,8 +54,16 @@ const DISCOVERY_PAGE_SIZE = 100;
 const DISCOVERY_MAX_PAGES_PER_QUERY = 6;
 const DISCOVERY_TARGET_POOL = 150;
 
+function normalizeText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function normalizeRoot(value: string): string {
-  const trimmed = value.trim().toLowerCase();
+  const trimmed = normalizeText(value);
 
   if (!trimmed) return "";
 
@@ -70,7 +78,6 @@ function normalizeRoot(value: string): string {
     trimmed.includes("indie") ||
     trimmed.includes("rnb") ||
     trimmed.includes("r&b") ||
-    trimmed.includes("hip-hop") ||
     trimmed.includes("hip hop") ||
     trimmed.includes("rap") ||
     trimmed.includes("dancehall") ||
@@ -110,7 +117,6 @@ function normalizeRoot(value: string): string {
 
   if (
     trimmed.includes("comedy") ||
-    trimmed.includes("stand-up") ||
     trimmed.includes("stand up") ||
     trimmed.includes("humor") ||
     trimmed.includes("improv") ||
@@ -126,7 +132,6 @@ function normalizeRoot(value: string): string {
     trimmed.includes("musical") ||
     trimmed.includes("opera") ||
     trimmed.includes("broadway") ||
-    trimmed.includes("dance") ||
     trimmed.includes("performance") ||
     trimmed.includes("ballet")
   ) {
@@ -184,7 +189,6 @@ function normalizeRoot(value: string): string {
 
   return (
     trimmed
-      .replace(/[^a-z0-9]+/g, " ")
       .split(" ")
       .filter(Boolean)[0] ?? ""
   );
@@ -212,6 +216,80 @@ export function getPreferredCategories(
   }
 
   return desired;
+}
+
+/**
+ * Pull a user's location from whichever profile field
+ * the current onboarding/profile implementation uses.
+ *
+ * This intentionally supports multiple shapes so we don't
+ * have to break an existing profile schema.
+ */
+export function getProfileLocation(
+  profile: PassrProfile | null,
+): string | undefined {
+  if (!profile) return undefined;
+
+  const flexibleProfile = profile as PassrProfile & {
+    location?: string;
+    city?: string;
+    state?: string;
+    preferences?: {
+      location?: string;
+      city?: string;
+      state?: string;
+      categories?: string[];
+      interests?: string[];
+      budget?: string;
+    };
+  };
+
+  const directLocation =
+    typeof flexibleProfile.location === "string"
+      ? flexibleProfile.location
+      : undefined;
+
+  if (directLocation?.trim()) {
+    return directLocation.trim();
+  }
+
+  const preferenceLocation =
+    typeof flexibleProfile.preferences?.location === "string"
+      ? flexibleProfile.preferences.location
+      : undefined;
+
+  if (preferenceLocation?.trim()) {
+    return preferenceLocation.trim();
+  }
+
+  const answerLocation =
+    Object.entries(profile.answers ?? {}).find(
+      ([key]) =>
+        normalizeText(key).includes("location") ||
+        normalizeText(key).includes("city") ||
+        normalizeText(key).includes("where"),
+    )?.[1];
+
+  if (answerLocation?.length) {
+    const value = answerLocation[0];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  if (
+    flexibleProfile.city &&
+    flexibleProfile.state
+  ) {
+    return `${flexibleProfile.city}, ${flexibleProfile.state}`;
+  }
+
+  if (flexibleProfile.city?.trim()) {
+    return flexibleProfile.city.trim();
+  }
+
+  return undefined;
 }
 
 function getProfileTokens(
@@ -266,15 +344,11 @@ function eventMatchesLocation(
   event: PassrEvent,
   location?: string,
 ): boolean {
-  if (!location) return true;
+  if (!location) return false;
 
-  const target = location
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  const target = normalizeText(location);
 
-  if (!target) return true;
+  if (!target) return false;
 
   const fields = [
     event.city,
@@ -282,9 +356,20 @@ function eventMatchesLocation(
     event.venue,
   ]
     .filter(Boolean)
-    .map((value) => value!.toLowerCase());
+    .map((value) => normalizeText(value!));
 
-  return fields.some((field) => field.includes(target));
+  const targetParts = target.split(" ");
+
+  return (
+    fields.some((field) => field.includes(target)) ||
+    targetParts.some(
+      (part) =>
+        part.length >= 3 &&
+        fields.some((field) =>
+          field.includes(part),
+        ),
+    )
+  );
 }
 
 function eventMatchesSubcategory(
@@ -293,10 +378,7 @@ function eventMatchesSubcategory(
 ): boolean {
   if (!subcategory) return true;
 
-  const target = subcategory
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  const target = normalizeText(subcategory);
 
   if (!target) return true;
 
@@ -307,11 +389,7 @@ function eventMatchesSubcategory(
     event.subtitle,
   ]
     .filter(Boolean)
-    .map((value) =>
-      value!
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " "),
-    );
+    .map((value) => normalizeText(value!));
 
   return fields.some((field) => field.includes(target));
 }
@@ -363,15 +441,90 @@ function isValidDiscoveryEvent(
   return true;
 }
 
+/**
+ * Creates a normalized identity for an event.
+ *
+ * This catches duplicate provider records without
+ * accidentally treating different dates as identical.
+ */
+function getEventIdentity(
+  event: PassrEvent,
+): string {
+  const source = event.source ?? "unknown";
+  const providerId =
+    event.sourceEventId ?? event.id;
+
+  return `${source}:${providerId}`;
+}
+
+/**
+ * When a user has a location, we also suppress repetitive
+ * distant listings of the same event/artist when the local
+ * inventory already contains a relevant result.
+ */
+function collapseLocationNoise(
+  events: PassrEvent[],
+  location?: string,
+): PassrEvent[] {
+  if (!location) {
+    return events;
+  }
+
+  const normalizedLocation =
+    normalizeText(location);
+
+  const localEvents = events.filter((event) =>
+    eventMatchesLocation(
+      event,
+      normalizedLocation,
+    ),
+  );
+
+  if (localEvents.length === 0) {
+    return events;
+  }
+
+  const localNames = new Set(
+    localEvents.map((event) =>
+      normalizeText(event.name),
+    ),
+  );
+
+  return events.filter((event) => {
+    if (
+      eventMatchesLocation(
+        event,
+        normalizedLocation,
+      )
+    ) {
+      return true;
+    }
+
+    const name = normalizeText(event.name);
+
+    if (localNames.has(name)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 function scoreEvent(
   event: PassrEvent,
   profile: PassrProfile | null,
   location?: string,
 ): number {
-  const desiredCategories = getPreferredCategories(profile);
+  const desiredCategories =
+    getPreferredCategories(profile);
+
   const tokens = getProfileTokens(profile);
-  const preferredMax = getPricePreference(profile);
-  const categoryKey = normalizeRoot(event.category);
+
+  const preferredMax =
+    getPricePreference(profile);
+
+  const categoryKey =
+    normalizeRoot(event.category);
 
   let score = 0;
 
@@ -387,11 +540,11 @@ function scoreEvent(
     location &&
     eventMatchesLocation(event, location)
   ) {
-    score += 30;
+    score += 100;
   }
 
   if (event.trending) {
-    score += 4;
+    score += 8;
   }
 
   if (event.image) {
@@ -541,13 +694,14 @@ async function fetchPaginatedQuery(
     events.length < targetCount;
     page += 1
   ) {
-    const batch = await fetchTicketmasterBatch({
-      ...baseParams,
-      countryCode:
-        baseParams["countryCode"] ?? "US",
-      page,
-      size: DISCOVERY_PAGE_SIZE,
-    });
+    const batch =
+      await fetchTicketmasterBatch({
+        ...baseParams,
+        countryCode:
+          baseParams.countryCode ?? "US",
+        page,
+        size: DISCOVERY_PAGE_SIZE,
+      });
 
     if (batch.length === 0) {
       break;
@@ -572,7 +726,13 @@ export async function fetchDiscoveryPool(
   const term = filters.term?.trim();
   const category = filters.category?.trim();
   const subcategory = filters.subcategory?.trim();
-  const location = filters.location?.trim();
+
+  const profileLocation =
+    getProfileLocation(profile);
+
+  const location =
+    filters.location?.trim() ||
+    profileLocation;
 
   const desiredCategories =
     getPreferredCategories(profile);
@@ -582,12 +742,6 @@ export async function fetchDiscoveryPool(
     string | number | undefined
   >[] = [];
 
-  /*
-   * Direct search.
-   *
-   * Example:
-   * "Olivia Dean"
-   */
   if (term) {
     queryDefinitions.push({
       keyword: term,
@@ -608,9 +762,6 @@ export async function fetchDiscoveryPool(
     });
   }
 
-  /*
-   * Homepage discovery.
-   */
   if (
     !term &&
     !category &&
@@ -624,15 +775,14 @@ export async function fetchDiscoveryPool(
       });
     }
 
-    const interestKeywords = Array.from(
-      getProfileTokens(profile),
-    )
-      .filter(
-        (token) =>
-          token.length >= 3 &&
-          !TOP_LEVEL_CATEGORY_KEYS.has(token),
-      )
-      .slice(0, 6);
+    const interestKeywords =
+      Array.from(getProfileTokens(profile))
+        .filter(
+          (token) =>
+            token.length >= 3 &&
+            !TOP_LEVEL_CATEGORY_KEYS.has(token),
+        )
+        .slice(0, 6);
 
     for (const keyword of interestKeywords) {
       queryDefinitions.push({
@@ -645,9 +795,6 @@ export async function fetchDiscoveryPool(
     }
   }
 
-  /*
-   * Remove duplicate provider queries.
-   */
   const uniqueQueries = Array.from(
     new Map(
       queryDefinitions.map((query) => [
@@ -662,55 +809,26 @@ export async function fetchDiscoveryPool(
       Math.max(1, uniqueQueries.length),
   );
 
-  /*
-   * Run all discovery queries.
-   *
-   * We use allSettled so one failed query doesn't
-   * destroy otherwise-valid discovery results.
-   *
-   * BUT if every query fails, we throw.
-   *
-   * This distinction is important:
-   *
-   * Some queries fail → show whatever succeeded.
-   * Everything fails → show a real error.
-   */
-  const results = await Promise.allSettled(
+  const batches = await Promise.all(
     uniqueQueries.map((query) =>
       fetchPaginatedQuery(
         query,
         perQueryTarget,
-      ),
+      ).catch((error) => {
+        console.error(
+          "Passr discovery query failed:",
+          {
+            query,
+            error,
+          },
+        );
+
+        return [];
+      }),
     ),
   );
 
-  const successfulBatches: PassrEvent[][] = [];
-  const failures: unknown[] = [];
-
-  for (const result of results) {
-    if (result.status === "fulfilled") {
-      successfulBatches.push(result.value);
-    } else {
-      failures.push(result.reason);
-    }
-  }
-
-  if (
-    successfulBatches.length === 0 &&
-    failures.length > 0
-  ) {
-    const firstFailure = failures[0];
-
-    if (firstFailure instanceof Error) {
-      throw firstFailure;
-    }
-
-    throw new Error(
-      "Passr could not load live discovery data.",
-    );
-  }
-
-  const filtered = successfulBatches
+  let filtered = batches
     .flat()
     .filter(isValidDiscoveryEvent)
     .filter((event) => {
@@ -733,22 +851,15 @@ export async function fetchDiscoveryPool(
       }
 
       if (
-        location &&
+        filters.location &&
         !eventMatchesLocation(
           event,
-          location,
+          filters.location,
         )
       ) {
         return false;
       }
 
-      /*
-       * Personalized homepage discovery should
-       * stay inside explicitly selected categories.
-       *
-       * Direct searches are never restricted by
-       * profile categories.
-       */
       if (
         desiredCategories.size > 0 &&
         !category &&
@@ -763,7 +874,53 @@ export async function fetchDiscoveryPool(
       return true;
     });
 
-  const merged = deduplicateEvents(filtered);
+  filtered = collapseLocationNoise(
+    filtered,
+    location,
+  );
+
+  /*
+   * Strong provider-level identity dedupe.
+   */
+  const identityMap =
+    new Map<string, PassrEvent>();
+
+  for (const event of filtered) {
+    const identity =
+      getEventIdentity(event);
+
+    const existing =
+      identityMap.get(identity);
+
+    if (!existing) {
+      identityMap.set(identity, event);
+      continue;
+    }
+
+    /*
+     * Keep the richer record.
+     */
+    const existingScore =
+      Number(Boolean(existing.image)) +
+      Number(Boolean(existing.ticketUrl)) +
+      Number(existing.startingAt !== undefined);
+
+    const newScore =
+      Number(Boolean(event.image)) +
+      Number(Boolean(event.ticketUrl)) +
+      Number(event.startingAt !== undefined);
+
+    if (newScore > existingScore) {
+      identityMap.set(identity, event);
+    }
+  }
+
+  filtered = Array.from(
+    identityMap.values(),
+  );
+
+  const merged =
+    deduplicateEvents(filtered);
 
   return merged
     .sort(
@@ -779,7 +936,10 @@ export async function fetchDiscoveryPool(
           location,
         ),
     )
-    .slice(0, DISCOVERY_TARGET_POOL);
+    .slice(
+      0,
+      DISCOVERY_TARGET_POOL,
+    );
 }
 
 export function buildHomeRails(
@@ -794,20 +954,66 @@ export function buildHomeRails(
     events: PassrEvent[];
   }>;
 } {
-  const valid = events.filter(
-    isValidDiscoveryEvent,
-  );
+  const valid =
+    events.filter(isValidDiscoveryEvent);
 
-  const ranked = [...valid].sort(
-    (a, b) =>
-      scoreEvent(b, profile) -
-      scoreEvent(a, profile),
-  );
+  const location =
+    getProfileLocation(profile);
+
+  /*
+   * Generic trending should NOT be personalized.
+   *
+   * We deliberately score this separately from
+   * Suggested for You.
+   */
+  const trending = [...valid]
+    .sort((a, b) => {
+      const aScore =
+        Number(Boolean(a.trending)) * 100 +
+        Number(Boolean(a.image)) * 2 +
+        Number(Boolean(a.ticketUrl)) * 2;
+
+      const bScore =
+        Number(Boolean(b.trending)) * 100 +
+        Number(Boolean(b.image)) * 2 +
+        Number(Boolean(b.ticketUrl)) * 2;
+
+      return bScore - aScore;
+    })
+    .slice(0, 10);
+
+  const ranked =
+    [...valid].sort(
+      (a, b) =>
+        scoreEvent(
+          b,
+          profile,
+          location,
+        ) -
+        scoreEvent(
+          a,
+          profile,
+          location,
+        ),
+    );
 
   const desiredCategories =
     getPreferredCategories(profile);
 
-  const categorySet = new Set<string>();
+  const personalizedRanked =
+    desiredCategories.size > 0
+      ? ranked.filter((event) =>
+          desiredCategories.has(
+            normalizeRoot(event.category),
+          ),
+        )
+      : ranked;
+
+  const suggested =
+    personalizedRanked.slice(0, 25);
+
+  const categorySet =
+    new Set<string>();
 
   if (desiredCategories.size > 0) {
     for (const category of desiredCategories) {
@@ -824,47 +1030,24 @@ export function buildHomeRails(
     }
   }
 
-  const takeUnique = (
-    source: PassrEvent[],
-    limit: number,
-  ) => source.slice(0, limit);
-
-  const personalizedRanked =
-    desiredCategories.size > 0
-      ? ranked.filter((event) =>
-          desiredCategories.has(
-            normalizeRoot(event.category),
-          ),
-        )
-      : ranked;
-
-  const trending = takeUnique(
-    personalizedRanked,
-    10,
-  );
-
-  const suggested = takeUnique(
-    personalizedRanked,
-    25,
-  );
-
-  const categories = Array.from(categorySet)
-    .map((categoryKey) => ({
-      id: categoryKey,
-      title:
-        CATEGORY_TITLE_MAP[categoryKey] ??
-        categoryKey,
-      events: ranked
-        .filter(
-          (event) =>
-            normalizeRoot(event.category) ===
-            categoryKey,
-        )
-        .slice(0, 25),
-    }))
-    .filter(
-      (rail) => rail.events.length > 0,
-    );
+  const categories =
+    Array.from(categorySet)
+      .map((categoryKey) => ({
+        id: categoryKey,
+        title:
+          CATEGORY_TITLE_MAP[categoryKey] ??
+          `${categoryKey} for you`,
+        events: ranked
+          .filter(
+            (event) =>
+              normalizeRoot(event.category) ===
+              categoryKey,
+          )
+          .slice(0, 25),
+      }))
+      .filter(
+        (rail) => rail.events.length > 0,
+      );
 
   return {
     trending,
@@ -873,4 +1056,6 @@ export function buildHomeRails(
   };
 }
 
-export { normalizeRoot };
+export {
+  normalizeRoot,
+};
