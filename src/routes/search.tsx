@@ -1,86 +1,104 @@
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useSearch,
+} from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronLeft, Loader2, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  Loader2,
+  Search,
+} from "lucide-react";
+
 import { money } from "@/lib/mock-data";
 import { searchEvents } from "@/lib/discovery-enhanced";
 import type { PassrEvent } from "@/lib/types";
+import { getProfile } from "@/lib/profile";
 import { EXPANDED_TAXONOMY } from "@/lib/taxonomy-expanded";
 
 import logo from "@/assets/passr-logo.png.asset.json";
 
 /**
- * Keep the search route category as a string.
+ * Keep the category key type compatible with whatever shape
+ * EXPANDED_TAXONOMY currently uses.
  *
- * EXPANDED_TAXONOMY is currently typed as an array in the project,
- * so using `keyof typeof EXPANDED_TAXONOMY` here can incorrectly
- * produce `number` as a possible key.
+ * We intentionally do not import CategoryKey from
+ * taxonomy-expanded.ts because that file does not currently
+ * export one.
  */
-type CategoryKey = string;
+type TaxonomyCategory = {
+  key?: unknown;
+  id?: unknown;
+  label?: unknown;
+  name?: unknown;
+  subcategories?: unknown;
+};
 
-type Subcategory = {
+type CategoryOption = {
   key: string;
   label: string;
 };
 
-type CategoryEntry = {
+type SubcategoryOption = {
   key: string;
   label: string;
 };
 
 /**
- * Convert the existing taxonomy into a simple list that this route
- * can safely consume regardless of whether the taxonomy is represented
- * as an array or object.
+ * Converts the taxonomy into a simple list of categories.
+ *
+ * This works whether EXPANDED_TAXONOMY is currently represented
+ * as an object or an array.
  */
-function getCategoryEntries(): CategoryEntry[] {
-  const taxonomy = EXPANDED_TAXONOMY as unknown;
+function getCategories(): CategoryOption[] {
+  const taxonomy =
+    EXPANDED_TAXONOMY as unknown;
 
   if (Array.isArray(taxonomy)) {
     return taxonomy
-      .map((item: unknown): CategoryEntry | null => {
-        if (
-          typeof item !== "object" ||
-          item === null
-        ) {
-          return null;
-        }
+      .map(
+        (
+          item: unknown,
+        ): CategoryOption | null => {
+          if (
+            typeof item !== "object" ||
+            item === null
+          ) {
+            return null;
+          }
 
-        const category = item as {
-          key?: unknown;
-          id?: unknown;
-          slug?: unknown;
-          label?: unknown;
-          name?: unknown;
-        };
+          const data =
+            item as TaxonomyCategory;
 
-        const key =
-          typeof category.key === "string"
-            ? category.key
-            : typeof category.id === "string"
-              ? category.id
-              : typeof category.slug === "string"
-                ? category.slug
+          const key =
+            typeof data.key === "string"
+              ? data.key
+              : typeof data.id === "string"
+                ? data.id
                 : undefined;
 
-        const label =
-          typeof category.label === "string"
-            ? category.label
-            : typeof category.name === "string"
-              ? category.name
-              : undefined;
+          const label =
+            typeof data.label === "string"
+              ? data.label
+              : typeof data.name === "string"
+                ? data.name
+                : undefined;
 
-        if (!key) {
-          return null;
-        }
+          if (!key || !label) {
+            return null;
+          }
 
-        return {
-          key,
-          label: label ?? key,
-        };
-      })
+          return {
+            key,
+            label,
+          };
+        },
+      )
       .filter(
-        (item): item is CategoryEntry =>
+        (
+          item,
+        ): item is CategoryOption =>
           item !== null,
       );
   }
@@ -93,56 +111,37 @@ function getCategoryEntries(): CategoryEntry[] {
   }
 
   return Object.entries(
-    taxonomy as Record<string, unknown>,
-  )
-    .map(
-      ([key, value]): CategoryEntry | null => {
-        if (
-          typeof value !== "object" ||
-          value === null
-        ) {
-          return {
-            key,
-            label: key,
-          };
-        }
+    taxonomy as Record<
+      string,
+      unknown
+    >,
+  ).map(([key, value]) => {
+    const data =
+      value as TaxonomyCategory;
 
-        const category = value as {
-          label?: unknown;
-          name?: unknown;
-        };
-
-        const label =
-          typeof category.label === "string"
-            ? category.label
-            : typeof category.name === "string"
-              ? category.name
-              : key;
-
-        return {
-          key,
-          label,
-        };
-      },
-    )
-    .filter(
-      (item): item is CategoryEntry =>
-        item !== null,
-    );
+    return {
+      key,
+      label:
+        typeof data?.label === "string"
+          ? data.label
+          : typeof data?.name === "string"
+            ? data.name
+            : key,
+    };
+  });
 }
 
 /**
- * Get subcategories for a selected category.
+ * Gets the taxonomy data for one category.
  */
-function getAllSubcategories(
-  categoryKey: CategoryKey,
-): Subcategory[] {
-  const taxonomy = EXPANDED_TAXONOMY as unknown;
-
-  let categoryData: unknown;
+function getCategoryData(
+  categoryKey: string,
+): TaxonomyCategory | undefined {
+  const taxonomy =
+    EXPANDED_TAXONOMY as unknown;
 
   if (Array.isArray(taxonomy)) {
-    const found = taxonomy.find(
+    const match = taxonomy.find(
       (item: unknown) => {
         if (
           typeof item !== "object" ||
@@ -151,74 +150,91 @@ function getAllSubcategories(
           return false;
         }
 
-        const category = item as {
-          key?: unknown;
-          id?: unknown;
-          slug?: unknown;
-        };
+        const data =
+          item as TaxonomyCategory;
 
         return (
-          category.key === categoryKey ||
-          category.id === categoryKey ||
-          category.slug === categoryKey
+          data.key === categoryKey ||
+          data.id === categoryKey
         );
       },
     );
 
-    categoryData = found;
-  } else if (
-    typeof taxonomy === "object" &&
-    taxonomy !== null
-  ) {
-    categoryData = (
-      taxonomy as Record<string, unknown>
-    )[categoryKey];
+    return match as
+      | TaxonomyCategory
+      | undefined;
   }
 
   if (
-    typeof categoryData !== "object" ||
-    categoryData === null
+    typeof taxonomy !== "object" ||
+    taxonomy === null
+  ) {
+    return undefined;
+  }
+
+  return (
+    taxonomy as Record<
+      string,
+      unknown
+    >
+  )[categoryKey] as
+    | TaxonomyCategory
+    | undefined;
+}
+
+/**
+ * Reads all subcategories from the selected category.
+ */
+function getAllSubcategories(
+  categoryKey: string,
+): SubcategoryOption[] {
+  const categoryData =
+    getCategoryData(categoryKey);
+
+  if (!categoryData) {
+    return [];
+  }
+
+  if (
+    !Array.isArray(
+      categoryData.subcategories,
+    )
   ) {
     return [];
   }
 
-  const data = categoryData as {
-    subcategories?: unknown;
-  };
-
-  if (!Array.isArray(data.subcategories)) {
-    return [];
-  }
-
-  return data.subcategories
+  return categoryData.subcategories
     .map(
-      (sub: unknown): Subcategory | null => {
+      (
+        item: unknown,
+      ): SubcategoryOption | null => {
         if (
-          typeof sub !== "object" ||
-          sub === null
+          typeof item !== "object" ||
+          item === null
         ) {
           return null;
         }
 
-        const item = sub as {
-          key?: unknown;
-          label?: unknown;
-          id?: unknown;
-          name?: unknown;
-        };
+        const data =
+          item as {
+            key?: unknown;
+            id?: unknown;
+            label?: unknown;
+            name?: unknown;
+          };
 
         const key =
-          typeof item.key === "string"
-            ? item.key
-            : typeof item.id === "string"
-              ? item.id
+          typeof data.key === "string"
+            ? data.key
+            : typeof data.id === "string"
+              ? data.id
               : undefined;
 
         const label =
-          typeof item.label === "string"
-            ? item.label
-            : typeof item.name === "string"
-              ? item.name
+          typeof data.label === "string"
+            ? data.label
+            : typeof data.name === "string"
+              ? data.name
               : undefined;
 
         if (!key || !label) {
@@ -232,64 +248,52 @@ function getAllSubcategories(
       },
     )
     .filter(
-      (sub): sub is Subcategory =>
-        sub !== null,
+      (
+        item,
+      ): item is SubcategoryOption =>
+        item !== null,
     );
-}
-
-/**
- * Get the display label for a category.
- */
-function getCategoryLabel(
-  categoryKey: CategoryKey,
-): string {
-  const category = getCategoryEntries().find(
-    (item) => item.key === categoryKey,
-  );
-
-  return category?.label ?? categoryKey;
 }
 
 interface SearchParams {
   q?: string;
-  category?: CategoryKey;
+  category?: string;
   subcategory?: string;
-  page?: number;
 }
 
-export const Route = createFileRoute("/search")({
+export const Route = createFileRoute(
+  "/search",
+)({
   validateSearch: (
     search: Record<string, unknown>,
   ): SearchParams => {
     const q =
-      typeof search["q"] === "string"
-        ? search["q"]
+      typeof search.q === "string"
+        ? search.q
         : undefined;
 
     const category =
-      typeof search["category"] === "string"
-        ? search["category"]
+      typeof search.category ===
+      "string"
+        ? search.category
         : undefined;
 
     const subcategory =
-      typeof search["subcategory"] === "string"
-        ? search["subcategory"]
-        : undefined;
-
-    const page =
-      typeof search["page"] === "number"
-        ? search["page"]
+      typeof search.subcategory ===
+      "string"
+        ? search.subcategory
         : undefined;
 
     return {
-      ...(q !== undefined ? { q } : {}),
+      ...(q !== undefined
+        ? { q }
+        : {}),
       ...(category !== undefined
         ? { category }
         : {}),
       ...(subcategory !== undefined
         ? { subcategory }
         : {}),
-      ...(page !== undefined ? { page } : {}),
     };
   },
 
@@ -301,12 +305,14 @@ function SearchResults() {
     from: Route.fullPath,
   });
 
+  const profile = getProfile();
+
   const [q, setQ] = useState(
     search.q ?? "",
   );
 
   const [category, setCategory] =
-    useState<CategoryKey | undefined>(
+    useState<string | undefined>(
       search.category,
     );
 
@@ -315,35 +321,28 @@ function SearchResults() {
       search.subcategory,
     );
 
-  const [page, setPage] = useState(
-    search.page ?? 0,
-  );
-
   const query = useQuery({
     queryKey: [
       "search",
       {
-        keyword: q,
+        term: q,
         category,
         subcategory,
-        page,
       },
     ],
 
-    queryFn: () => {
+    queryFn: async () => {
       const filters: Parameters<
         typeof searchEvents
-      >[0] = {
-        page,
-        size: 20,
-      };
+      >[0] = {};
 
       if (q.trim()) {
         filters.term = q.trim();
       }
 
       if (category) {
-        filters.category = category;
+        filters.category =
+          category;
       }
 
       if (subcategory) {
@@ -352,26 +351,54 @@ function SearchResults() {
       }
 
       /*
-       * searchEvents accepts one options object.
+       * searchEvents uses the same real-data
+       * discovery pipeline as the homepage.
        *
-       * It already receives the profile through the
-       * discovery pipeline where appropriate, so do not
-       * pass profile as a second argument.
+       * Profile is intentionally not passed as a
+       * second argument because the current
+       * searchEvents API accepts one options object.
        */
-      return searchEvents(filters);
+      return searchEvents({
+        ...filters,
+        profile,
+      });
     },
 
     enabled: Boolean(
-      q.trim() || category,
+      q.trim() ||
+        category ||
+        subcategory,
     ),
   });
 
-  const subcategories = category
-    ? getAllSubcategories(category)
-    : [];
+  const subcategories =
+    category
+      ? getAllSubcategories(category)
+      : [];
 
   const categories =
-    getCategoryEntries();
+    getCategories();
+
+  const events: PassrEvent[] =
+    Array.isArray(query.data)
+      ? query.data
+      : query.data &&
+          typeof query.data ===
+            "object" &&
+          "events" in query.data &&
+          Array.isArray(
+            (
+              query.data as {
+                events?: unknown;
+              }
+            ).events,
+        )
+        ? (
+            query.data as {
+              events: PassrEvent[];
+            }
+          ).events
+        : [];
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl bg-background pb-24 text-foreground">
@@ -404,9 +431,10 @@ function SearchResults() {
 
             <input
               value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(0);
+              onChange={(event) => {
+                setQ(
+                  event.target.value,
+                );
               }}
               placeholder="Search events, artists, venues..."
               className="w-full rounded-full border border-border bg-muted px-12 py-3 font-inter text-base text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
@@ -423,29 +451,29 @@ function SearchResults() {
 
             <div className="flex flex-wrap gap-2">
               {categories.map(
-                (cat) => (
+                (item) => (
                   <button
-                    key={cat.key}
+                    key={item.key}
                     onClick={() => {
                       setCategory(
-                        category === cat.key
+                        category ===
+                          item.key
                           ? undefined
-                          : cat.key,
+                          : item.key,
                       );
 
                       setSubcategory(
                         undefined,
                       );
-
-                      setPage(0);
                     }}
                     className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      category === cat.key
+                      category ===
+                      item.key
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-foreground hover:border-primary/50"
                     }`}
                   >
-                    {cat.label}
+                    {item.label}
                   </button>
                 ),
               )}
@@ -453,12 +481,17 @@ function SearchResults() {
           </div>
 
           {/* Subcategory filters */}
-          {subcategories.length > 0 && (
+          {subcategories.length >
+            0 && (
             <div>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {getCategoryLabel(
+                {getCategoryData(
                   category!,
-                )}
+                )?.label ??
+                  getCategoryData(
+                    category!,
+                  )?.name ??
+                  ""}
               </h3>
 
               <div className="flex flex-wrap gap-2">
@@ -473,8 +506,6 @@ function SearchResults() {
                             ? undefined
                             : sub.key,
                         );
-
-                        setPage(0);
                       }}
                       className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                         subcategory ===
@@ -510,19 +541,21 @@ function SearchResults() {
           !query.isError &&
           query.data && (
             <>
-              {query.data.length > 0 ? (
+              {events.length > 0 ? (
                 <div className="space-y-6">
                   <p className="text-sm text-muted-foreground">
                     Found{" "}
-                    {query.data.length}{" "}
+                    {events.length}{" "}
                     {q
                       ? `results for "${q}"`
                       : "results"}
                   </p>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {query.data.map(
-                      (event) => (
+                    {events.map(
+                      (
+                        event: PassrEvent,
+                      ) => (
                         <SearchEventCard
                           key={event.id}
                           event={event}
@@ -530,39 +563,6 @@ function SearchResults() {
                       ),
                     )}
                   </div>
-
-                  {/* Pagination */}
-                  {query.data.length >=
-                    20 && (
-                    <div className="flex justify-center gap-3 pt-8">
-                      {page > 0 && (
-                        <button
-                          onClick={() =>
-                            setPage(
-                              Math.max(
-                                0,
-                                page - 1,
-                              ),
-                            )
-                          }
-                          className="rounded-full border border-border bg-background px-5 py-2 text-sm font-semibold hover:bg-muted"
-                        >
-                          Previous
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() =>
-                          setPage(
-                            page + 1,
-                          )
-                        }
-                        className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-muted/40 px-6 py-8 text-center text-sm text-muted-foreground">
@@ -576,7 +576,8 @@ function SearchResults() {
           !query.isError &&
           !query.data &&
           !q &&
-          !category && (
+          !category &&
+          !subcategory && (
             <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
               Enter a search or select a category to explore events.
             </div>
