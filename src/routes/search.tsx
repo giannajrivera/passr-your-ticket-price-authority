@@ -15,17 +15,11 @@ import {
 } from "lucide-react";
 
 import { money } from "@/lib/mock-data";
-import {
-  searchEvents,
-} from "@/lib/discovery-enhanced";
+import { searchEvents } from "@/lib/discovery-enhanced";
 import type { PassrEvent } from "@/lib/types";
 import { getProfile } from "@/lib/profile";
-import {
-  getProfileLocation,
-} from "@/lib/discovery";
-import {
-  EXPANDED_TAXONOMY,
-} from "@/lib/taxonomy-expanded";
+import { getProfileLocation } from "@/lib/discovery";
+import { EXPANDED_TAXONOMY } from "@/lib/taxonomy-expanded";
 
 import logo from "@/assets/passr-logo.png.asset.json";
 
@@ -61,73 +55,53 @@ interface SearchParams {
   location?: string;
 }
 
-export const Route =
-  createFileRoute("/search")({
-    validateSearch: (
-      search: Record<
-        string,
-        unknown
-      >,
-    ): SearchParams => {
-      const q =
-        typeof search['q'] ===
-        "string"
-          ? search['q']
-          : undefined;
+export const Route = createFileRoute("/search")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): SearchParams => {
+    const q =
+      typeof search["q"] === "string"
+        ? search["q"]
+        : undefined;
 
-      const category =
-        typeof search['category'] ===
-        "string"
-          ? search['category']
-          : undefined;
+    const category =
+      typeof search["category"] === "string"
+        ? search["category"]
+        : undefined;
 
-      const subcategory =
-        typeof search['subcategory'] ===
-        "string"
-          ? search['subcategory']
-          : undefined;
+    const subcategory =
+      typeof search["subcategory"] === "string"
+        ? search["subcategory"]
+        : undefined;
 
-      const location =
-        typeof search['location'] ===
-        "string"
-          ? search['location']
-          : undefined;
+    const location =
+      typeof search["location"] === "string"
+        ? search["location"]
+        : undefined;
 
-      return {
-        ...(q !== undefined
-          ? { q }
-          : {}),
-        ...(category !==
-        undefined
-          ? { category }
-          : {}),
-        ...(subcategory !==
-        undefined
-          ? { subcategory }
-          : {}),
-        ...(location !==
-        undefined
-          ? { location }
-          : {}),
-      };
-    },
+    return {
+      ...(q !== undefined ? { q } : {}),
+      ...(category !== undefined ? { category } : {}),
+      ...(subcategory !== undefined
+        ? { subcategory }
+        : {}),
+      ...(location !== undefined ? { location } : {}),
+    };
+  },
 
-    component:
-      SearchResults,
-  });
+  component: SearchResults,
+});
 
 function readString(
   value: unknown,
 ): string | undefined {
-  return typeof value ===
-    "string"
+  return typeof value === "string"
     ? value
     : undefined;
 }
 
 function getCategories(): CategoryOption[] {
-  const taxonomy =
-    EXPANDED_TAXONOMY as unknown;
+  const taxonomy = EXPANDED_TAXONOMY as unknown;
 
   if (Array.isArray(taxonomy)) {
     return taxonomy
@@ -136,31 +110,21 @@ function getCategories(): CategoryOption[] {
           item: unknown,
         ): CategoryOption | null => {
           if (
-            typeof item !==
-              "object" ||
+            typeof item !== "object" ||
             item === null
           ) {
             return null;
           }
 
-          const data =
-            item as TaxonomyCategory;
+          const data = item as TaxonomyCategory;
 
           const key =
-            readString(
-              data.key,
-            ) ??
-            readString(
-              data.id,
-            );
+            readString(data.key) ??
+            readString(data.id);
 
           const label =
-            readString(
-              data.label,
-            ) ??
-            readString(
-              data.name,
-            );
+            readString(data.label) ??
+            readString(data.name);
 
           if (!key || !label) {
             return null;
@@ -181,67 +145,50 @@ function getCategories(): CategoryOption[] {
   }
 
   if (
-    typeof taxonomy !==
-      "object" ||
+    typeof taxonomy !== "object" ||
     taxonomy === null
   ) {
     return [];
   }
 
   return Object.entries(
-    taxonomy as Record<
-      string,
-      unknown
-    >,
-  ).map(
-    ([key, value]) => {
-      const data =
-        value as TaxonomyCategory;
+    taxonomy as Record<string, unknown>,
+  ).map(([key, value]) => {
+    const data = value as TaxonomyCategory;
 
-      return {
+    return {
+      key,
+      label:
+        readString(data?.label) ??
+        readString(data?.name) ??
         key,
-        label:
-          readString(
-            data?.label,
-          ) ??
-          readString(
-            data?.name,
-          ) ??
-          key,
-      };
-    },
-  );
+    };
+  });
 }
 
 function getCategoryData(
   categoryKey: string,
 ): TaxonomyCategory | undefined {
-  const taxonomy =
-    EXPANDED_TAXONOMY as unknown;
+  const taxonomy = EXPANDED_TAXONOMY as unknown;
 
   if (Array.isArray(taxonomy)) {
-    const match =
-      taxonomy.find(
-        (item: unknown) => {
-          if (
-            typeof item !==
-              "object" ||
-            item === null
-          ) {
-            return false;
-          }
+    const match = taxonomy.find(
+      (item: unknown) => {
+        if (
+          typeof item !== "object" ||
+          item === null
+        ) {
+          return false;
+        }
 
-          const data =
-            item as TaxonomyCategory;
+        const data = item as TaxonomyCategory;
 
-          return (
-            data.key ===
-              categoryKey ||
-            data.id ===
-              categoryKey
-          );
-        },
-      );
+        return (
+          data.key === categoryKey ||
+          data.id === categoryKey
+        );
+      },
+    );
 
     return match as
       | TaxonomyCategory
@@ -249,18 +196,14 @@ function getCategoryData(
   }
 
   if (
-    typeof taxonomy !==
-      "object" ||
+    typeof taxonomy !== "object" ||
     taxonomy === null
   ) {
     return undefined;
   }
 
   return (
-    taxonomy as Record<
-      string,
-      unknown
-    >
+    taxonomy as Record<string, unknown>
   )[categoryKey] as
     | TaxonomyCategory
     | undefined;
@@ -270,9 +213,7 @@ function getAllSubcategories(
   categoryKey: string,
 ): SubcategoryOption[] {
   const categoryData =
-    getCategoryData(
-      categoryKey,
-    );
+    getCategoryData(categoryKey);
 
   if (!categoryData) {
     return [];
@@ -292,31 +233,21 @@ function getAllSubcategories(
         item: unknown,
       ): SubcategoryOption | null => {
         if (
-          typeof item !==
-              "object" ||
+          typeof item !== "object" ||
           item === null
         ) {
           return null;
         }
 
-        const data =
-          item as TaxonomyNode;
+        const data = item as TaxonomyNode;
 
         const key =
-          readString(
-            data.key,
-          ) ??
-          readString(
-            data.id,
-          );
+          readString(data.key) ??
+          readString(data.id);
 
         const label =
-          readString(
-            data.label,
-          ) ??
-          readString(
-            data.name,
-          );
+          readString(data.label) ??
+          readString(data.name);
 
         if (!key || !label) {
           return null;
@@ -337,42 +268,32 @@ function getAllSubcategories(
 }
 
 function SearchResults() {
-  const search =
-    useSearch({
-      from: Route.fullPath,
-    });
+  const search = useSearch({
+    from: Route.fullPath,
+  });
 
-  const navigate =
-    useNavigate({
-      from: Route.fullPath,
-    });
+  const navigate = useNavigate({
+    from: Route.fullPath,
+  });
 
-  const profile =
-    getProfile();
+  const profile = getProfile();
 
   const profileLocation =
-    getProfileLocation(
-      profile,
-    );
+    getProfileLocation(profile);
 
-  const [q, setQ] =
-    useState(
-      search.q ?? "",
-    );
+  const [q, setQ] = useState(
+    search.q ?? "",
+  );
 
   const [category, setCategory] =
-    useState<
-      string | undefined
-    >(
+    useState<string | undefined>(
       search.category,
     );
 
   const [
     subcategory,
     setSubcategory,
-  ] = useState<
-    string | undefined
-  >(
+  ] = useState<string | undefined>(
     search.subcategory,
   );
 
@@ -388,131 +309,104 @@ function SearchResults() {
     setShowSuggestions,
   ] = useState(false);
 
-  const categories =
-    useMemo(
-      () => getCategories(),
-      [],
-    );
+  const categories = useMemo(
+    () => getCategories(),
+    [],
+  );
 
-  const subcategories =
-    useMemo(
-      () =>
-        category
-          ? getAllSubcategories(
-              category,
-            )
-          : [],
-      [category],
-    );
+  const subcategories = useMemo(
+    () =>
+      category
+        ? getAllSubcategories(category)
+        : [],
+    [category],
+  );
 
-  const query =
-    useQuery({
-      queryKey: [
-        "search",
-        {
-          term: q.trim(),
-          category,
-          subcategory,
-          location:
-            location.trim(),
-        },
-      ],
+  const query = useQuery({
+    queryKey: [
+      "search",
+      {
+        term: q.trim(),
+        category,
+        subcategory,
+        location: location.trim(),
+      },
+    ],
 
-      queryFn:
-        async () =>
-          searchEvents({
-            term:
-              q.trim() ||
-              undefined,
-            category,
-            subcategory,
-            location:
-              location.trim() ||
-              undefined,
-            profile,
-            size: 150,
-          }),
+    queryFn: async () =>
+      searchEvents({
+        term: q.trim() || undefined,
+        category,
+        subcategory,
+        location:
+          location.trim() || undefined,
+        profile,
+        size: 150,
+      }),
 
-      enabled:
-        Boolean(
-          q.trim() ||
-            category ||
-            subcategory ||
-            location.trim(),
-        ),
-    });
+    enabled: Boolean(
+      q.trim() ||
+        category ||
+        subcategory ||
+        location.trim(),
+    ),
+  });
 
   const events: PassrEvent[] =
-    query.data?.events ??
-    [];
+    query.data?.events ?? [];
 
-  const suggestions =
-    useMemo(() => {
-      const term =
-        q.trim().toLowerCase();
+  const suggestions = useMemo(() => {
+    const term = q.trim().toLowerCase();
 
-      if (
-        term.length < 2 ||
-        !query.data
-      ) {
-        return [];
-      }
+    if (
+      term.length < 2 ||
+      !query.data
+    ) {
+      return [];
+    }
 
-      const seen =
-        new Set<string>();
+    const seen = new Set<string>();
 
-      return query.data.events
-        .filter(
-          (event) => {
-            const searchable =
-              [
-                event.name,
-                event.subtitle,
-                event.venue,
-                event.genre,
-                event.subGenre,
-                event.city,
-                event.category,
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
+    return query.data.events
+      .filter((event) => {
+        const searchable = [
+          event.name,
+          event.subtitle,
+          event.venue,
+          event.genre,
+          event.subGenre,
+          event.city,
+          event.category,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-            return searchable.includes(
-              term,
-            );
-          },
-        )
-        .filter(
-          (event) => {
-            const key =
-              event.name
-                .trim()
-                .toLowerCase();
+        return searchable.includes(term);
+      })
+      .filter((event) => {
+        const key =
+          event.name
+            .trim()
+            .toLowerCase();
 
-            if (
-              seen.has(key)
-            ) {
-              return false;
-            }
+        if (seen.has(key)) {
+          return false;
+        }
 
-            seen.add(key);
+        seen.add(key);
 
-            return true;
-          },
-        )
-        .slice(0, 6);
-    }, [
-      q,
-      query.data,
-    ]);
+        return true;
+      })
+      .slice(0, 6);
+  }, [q, query.data]);
 
   const syncRoute = (
     next: {
-      q?: string;
-      category?: string;
-      subcategory?: string;
-      location?: string;
+      q?: string | undefined;
+      category?: string | undefined;
+      subcategory?: string | undefined;
+      location?: string | undefined;
     },
   ) => {
     void navigate({
@@ -521,10 +415,7 @@ function SearchResults() {
           ? { q: next.q }
           : {}),
         ...(next.category
-          ? {
-              category:
-                next.category,
-            }
+          ? { category: next.category }
           : {}),
         ...(next.subcategory
           ? {
@@ -542,27 +433,19 @@ function SearchResults() {
     });
   };
 
-  const clearFilters =
-    () => {
-      setCategory(
-        undefined,
-      );
+  const clearFilters = () => {
+    setCategory(undefined);
+    setSubcategory(undefined);
+    setLocation("");
 
-      setSubcategory(
-        undefined,
-      );
-
-      setLocation("");
-
-      syncRoute({
-        q: q.trim() || undefined,
-      });
-    };
+    syncRoute({
+      q: q.trim() || undefined,
+    });
+  };
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl bg-background pb-24 text-foreground">
       <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6 lg:px-8">
-
         <header className="mb-8">
           <Link
             to="/"
@@ -591,19 +474,14 @@ function SearchResults() {
             <input
               value={q}
               onFocus={() =>
-                setShowSuggestions(
-                  true,
-                )
+                setShowSuggestions(true)
               }
               onChange={(event) => {
                 const value =
-                  event.target
-                    .value;
+                  event.target.value;
 
                 setQ(value);
-                setShowSuggestions(
-                  true,
-                );
+                setShowSuggestions(true);
 
                 syncRoute({
                   q:
@@ -625,9 +503,7 @@ function SearchResults() {
                 type="button"
                 onClick={() => {
                   setQ("");
-                  setShowSuggestions(
-                    false,
-                  );
+                  setShowSuggestions(false);
 
                   syncRoute({
                     category,
@@ -645,28 +521,19 @@ function SearchResults() {
             )}
 
             {showSuggestions &&
-              suggestions.length >
-                0 && (
+              suggestions.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
                   {suggestions.map(
                     (event) => (
                       <button
-                        key={
-                          event.id
-                        }
+                        key={event.id}
                         type="button"
                         onClick={() => {
-                          setQ(
-                            event.name,
-                          );
-
-                          setShowSuggestions(
-                            false,
-                          );
+                          setQ(event.name);
+                          setShowSuggestions(false);
 
                           syncRoute({
-                            q:
-                              event.name,
+                            q: event.name,
                             category,
                             subcategory,
                             location:
@@ -680,9 +547,7 @@ function SearchResults() {
 
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold">
-                            {
-                              event.name
-                            }
+                            {event.name}
                           </span>
 
                           <span className="block truncate text-xs text-muted-foreground">
@@ -691,12 +556,8 @@ function SearchResults() {
                               event.city,
                               event.genre,
                             ]
-                              .filter(
-                                Boolean,
-                              )
-                              .join(
-                                " · ",
-                              )}
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
                         </span>
                       </button>
@@ -716,14 +577,11 @@ function SearchResults() {
                 {categories.map(
                   (item) => (
                     <button
-                      key={
-                        item.key
-                      }
+                      key={item.key}
                       type="button"
                       onClick={() => {
                         const nextCategory =
-                          category ===
-                          item.key
+                          category === item.key
                             ? undefined
                             : item.key;
 
@@ -747,43 +605,39 @@ function SearchResults() {
                         });
                       }}
                       className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                        category ===
-                        item.key
+                        category === item.key
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-background text-foreground hover:border-primary/50"
                       }`}
                     >
-                      {
-                        item.label
-                      }
+                      {item.label}
                     </button>
                   ),
                 )}
               </div>
             </div>
 
-            {subcategories.length >
-              0 && (
+            {subcategories.length > 0 && (
               <div>
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                  {getCategoryData(
-                    category!,
-                  )?.label ??
+                  {readString(
                     getCategoryData(
                       category!,
-                    )?.name ??
+                    )?.label,
+                  ) ??
+                    readString(
+                      getCategoryData(
+                        category!,
+                      )?.name,
+                    ) ??
                     "More filters"}
                 </p>
 
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {subcategories.map(
-                    (
-                      sub,
-                    ) => (
+                    (sub) => (
                       <button
-                        key={
-                          sub.key
-                        }
+                        key={sub.key}
                         type="button"
                         onClick={() => {
                           const nextSubcategory =
@@ -815,9 +669,7 @@ function SearchResults() {
                             : "border-border bg-muted text-foreground hover:border-primary/30"
                         }`}
                       >
-                        {
-                          sub.label
-                        }
+                        {sub.label}
                       </button>
                     ),
                   )}
@@ -834,20 +686,12 @@ function SearchResults() {
                 <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
                 <input
-                  value={
-                    location
-                  }
-                  onChange={(
-                    event,
-                  ) => {
+                  value={location}
+                  onChange={(event) => {
                     const value =
-                      event
-                        .target
-                        .value;
+                      event.target.value;
 
-                    setLocation(
-                      value,
-                    );
+                    setLocation(value);
 
                     syncRoute({
                       q:
@@ -867,15 +711,11 @@ function SearchResults() {
 
               {profileLocation &&
                 !location && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Using your profile
-                  location:
-                  {" "}
-                  {
-                    profileLocation
-                  }
-                </p>
-              )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Using your profile location:{" "}
+                    {profileLocation}
+                  </p>
+                )}
             </div>
 
             {(category ||
@@ -883,9 +723,7 @@ function SearchResults() {
               location) && (
               <button
                 type="button"
-                onClick={
-                  clearFilters
-                }
+                onClick={clearFilters}
                 className="text-xs font-semibold text-primary hover:underline"
               >
                 Clear filters
@@ -911,18 +749,13 @@ function SearchResults() {
           !query.isError &&
           query.data && (
             <>
-              {events.length >
-              0 ? (
+              {events.length > 0 ? (
                 <div className="space-y-6">
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
                       Found{" "}
                       <span className="font-semibold text-foreground">
-                        {
-                          query
-                            .data
-                            .totalCount
-                        }
+                        {query.data.totalCount}
                       </span>{" "}
                       {q
                         ? `results for "${q}"`
@@ -932,25 +765,17 @@ function SearchResults() {
                     {location && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
                         <MapPin className="h-3 w-3" />
-                        {
-                          location
-                        }
+                        {location}
                       </span>
                     )}
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {events.map(
-                      (
-                        event,
-                      ) => (
+                      (event) => (
                         <SearchEventCard
-                          key={
-                            event.id
-                          }
-                          event={
-                            event
-                          }
+                          key={event.id}
+                          event={event}
                         />
                       ),
                     )}
@@ -971,10 +796,10 @@ function SearchResults() {
           !category &&
           !subcategory &&
           !location && (
-          <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
-            Search for an artist, event, venue, or choose a category to explore.
-          </div>
-        )}
+            <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
+              Search for an artist, event, venue, or choose a category to explore.
+            </div>
+          )}
       </div>
     </div>
   );
@@ -1008,13 +833,9 @@ function SearchEventCard({
 
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <span>
-            {event.category}
-          </span>
+          <span>{event.category}</span>
 
-          <span>
-            {event.city}
-          </span>
+          <span>{event.city}</span>
         </div>
 
         <h3 className="line-clamp-2 font-sans text-sm font-bold leading-tight">
@@ -1032,15 +853,13 @@ function SearchEventCard({
           </span>
 
           <span className="price text-sm font-bold">
-            {event.startingAt ===
-            undefined
+            {event.startingAt === undefined
               ? "—"
-              : money(
-                  event.startingAt,
-                )}
+              : money(event.startingAt)}
           </span>
         </div>
       </div>
     </Link>
   );
 }
+```
