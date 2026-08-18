@@ -1,7 +1,23 @@
 import type { PassrProfile } from "@/lib/profile";
 import type { PassrEvent } from "@/lib/types";
-
+import {
+  facetsFor,
+  getPreferences,
+  resolveFacets,
+  type EventPreferences,
+} from "@/lib/preferences";
 import { deduplicateEvents } from "@/lib/event-utils";
+
+/**
+ * Passr discovery is intentionally split into three layers:
+ *
+ * 1. Passr taxonomy/preferences
+ * 2. Provider query construction
+ * 3. Provider-agnostic ranking/filtering
+ *
+ * Ticketmaster is currently the provider, but nothing below the ranking
+ * layer should require Ticketmaster-specific concepts.
+ */
 
 export type DiscoveryFilters = {
   term?: string | undefined;
@@ -9,6 +25,23 @@ export type DiscoveryFilters = {
   subcategory?: string | undefined;
   location?: string | undefined;
   radiusMiles?: number | undefined;
+};
+
+type ProviderQuery = Record<
+  string,
+  string | number | undefined
+>;
+
+type SearchableFacet = {
+  id: string;
+  category: string;
+  subcategory?: string;
+  detail?: string;
+  subDetail?: string;
+  categoryLabel: string;
+  subcategoryLabel?: string;
+  detailLabel?: string;
+  subDetailLabel?: string;
 };
 
 const CATEGORY_TITLE_MAP: Record<string, string> = {
@@ -54,15 +87,28 @@ const DISCOVERY_PAGE_SIZE = 100;
 const DISCOVERY_MAX_PAGES_PER_QUERY = 6;
 const DISCOVERY_TARGET_POOL = 150;
 
+/* -------------------------------------------------------------------------- */
+/* Text / taxonomy helpers                                                     */
+/* -------------------------------------------------------------------------- */
+
 function normalizeText(value: string): string {
   return value
     .trim()
     .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function normalizeRoot(value: string): string {
+/**
+ * Maps an arbitrary Passr category-like value to a top-level category.
+ *
+ * This remains as a compatibility helper for provider-normalized events.
+ * Preference matching itself uses taxonomy paths first.
+ */
+export function normalizeRoot(value: string): string {
   const trimmed = normalizeText(value);
 
   if (!trimmed) return "";
@@ -187,102 +233,177 @@ function normalizeRoot(value: string): string {
     return "film-media";
   }
 
-  return (
-    trimmed
-      .split(" ")
-      .filter(Boolean)[0] ?? ""
-  );
-}
-
-export function getPreferredCategories(
-  profile: PassrProfile | null,
-): Set<string> {
-  const desired = new Set<string>();
-
-  for (const item of profile?.preferences?.categories ?? []) {
-    const normalized = normalizeRoot(item);
-
-    if (normalized) {
-      desired.add(normalized);
-    }
-  }
-
-  for (const item of profile?.answers?.["categories"] ?? []) {
-    const normalized = normalizeRoot(item);
-
-    if (normalized) {
-      desired.add(normalized);
-    }
-  }
-
-  return desired;
+  return trimmed.split(" ").filter(Boolean)[0] ?? "";
 }
 
 /**
- * Pull a user's location from whichever profile field
- * the current onboarding/profile implementation uses.
+ * Get the structured preference object regardless of whether the profile is
+ * an older profile or a newer one.
+ */
+function getProfilePreferences(
+  profile: PassrProfile | null,
+): EventPreferences {
+  return (
+    profile?.preferences ??
+    getPreferences()
+  );
+}
+
+/**
+ * Resolve all explicit taxonomy selections.
+ */
+function getProfileFacets(
+  profile: PassrProfile | null,
+): SearchableFacet[] {
+  return facetsFor(
+    getProfilePreferences(profile),
+  ) as SearchableFacet[];
+}
+
+/**
+ * Top-level category selections.
  *
- * This intentionally supports multiple shapes so we don't
- * have to break an existing profile schema.
+ * We intentionally include both:
+ *
+ * preferences.categories
+ * preferences.interests -> root
+ *
+ * This means selecting "sports.basketball.wnba" implicitly makes Sports a
+ * preferred category.
+ */
+export function getPreferredCategories(
+  profile: PassrProfile | null,
+): Set<string> {
+  const preferences =
+    getProfilePreferences(profile);
+
+  const categories = new Set<string>();
+
+  for (const category of preferences.categories ?? []) {
+    const root = normalizeText(
+      category.split(".")[0] ?? category,
+    );
+
+    if (root) {
+      categories.add(root);
+    }
+  }
+
+  for (const interest of preferences.interests ?? []) {
+    const root = normalizeText(
+      interest.split(".")[0] ?? interest,
+    );
+
+    if (root) {
+      categories.add(root);
+    }
+  }
+
+  return categories;
+}
+
+/**
+ * Get all meaningful text tokens from structured preferences.
+ *
+ * These are used for ranking and as fallback provider keywords.
+ */
+function getPreferenceTokens(
+  profile: PassrProfile | null,
+): string[] {
+  const preferences =
+    getProfilePreferences(profile);
+
+  const tokens = new Set<string>();
+
+  const add = (value: string | undefined) => {
+    if (!value) return;
+
+    const normalized = normalizeText(value);
+
+    if (
+      normalized.length >= 3 &&
+      !TOP_LEVEL_CATEGORY_KEYS.has(normalized)
+    ) {
+      tokens.add(normalized);
+    }
+  };
+
+  for (const facet of getProfileFacets(profile)) {
+    add(facet.subcategoryLabel);
+    add(facet.detailLabel);
+    add(facet.subDetailLabel);
+  }
+
+  for (const interest of preferences.interests ?? []) {
+    add(interest.replace(/\./g, " "));
+  }
+
+  return Array.from(tokens);
+}
+
+/**
+ * Pull location from every supported profile shape.
  */
 export function getProfileLocation(
   profile: PassrProfile | null,
 ): string | undefined {
   if (!profile) return undefined;
 
-  const flexibleProfile = profile as PassrProfile & {
-    location?: string;
-    city?: string;
-    state?: string;
-    preferences?: {
+  const flexibleProfile =
+    profile as PassrProfile & {
       location?: string;
       city?: string;
       state?: string;
-      categories?: string[];
-      interests?: string[];
-      budget?: string;
+      preferences?: EventPreferences & {
+        location?: string;
+        city?: string;
+        state?: string;
+      };
     };
-  };
 
-  const directLocation =
-    typeof flexibleProfile.location === "string"
-      ? flexibleProfile.location
-      : undefined;
-
-  if (directLocation?.trim()) {
-    return directLocation.trim();
+  if (
+    typeof flexibleProfile.location === "string" &&
+    flexibleProfile.location.trim()
+  ) {
+    return flexibleProfile.location.trim();
   }
 
-  const preferenceLocation =
-    typeof flexibleProfile.preferences?.location === "string"
-      ? flexibleProfile.preferences.location
-      : undefined;
-
-  if (preferenceLocation?.trim()) {
-    return preferenceLocation.trim();
+  if (
+    typeof flexibleProfile.preferences?.location === "string" &&
+    flexibleProfile.preferences.location.trim()
+  ) {
+    return flexibleProfile.preferences.location.trim();
   }
 
   const answerLocation =
     Object.entries(profile.answers ?? {}).find(
-      ([key]) =>
-        normalizeText(key).includes("location") ||
-        normalizeText(key).includes("city") ||
-        normalizeText(key).includes("where"),
+      ([key]) => {
+        const normalized = normalizeText(key);
+
+        return (
+          normalized.includes("location") ||
+          normalized.includes("city") ||
+          normalized.includes("where")
+        );
+      },
     )?.[1];
 
   if (answerLocation?.length) {
     const value = answerLocation[0];
 
-    if (typeof value === "string" && value.trim()) {
+    if (
+      typeof value === "string" &&
+      value.trim()
+    ) {
       return value.trim();
     }
   }
 
   if (
-    flexibleProfile.city &&
-    flexibleProfile.state
+    flexibleProfile.city?.trim() &&
+    flexibleProfile.state?.trim()
   ) {
-    return `${flexibleProfile.city}, ${flexibleProfile.state}`;
+    return `${flexibleProfile.city.trim()}, ${flexibleProfile.state.trim()}`;
   }
 
   if (flexibleProfile.city?.trim()) {
@@ -292,52 +413,49 @@ export function getProfileLocation(
   return undefined;
 }
 
-function getProfileTokens(
-  profile: PassrProfile | null,
-): Set<string> {
-  const tokens = new Set<string>();
-
-  const addToken = (value: string | undefined) => {
-    if (!value) return;
-
-    const clean = value
-      .toLowerCase()
-      .replace(/[^a-z0-9&+]+/g, " ")
-      .trim();
-
-    if (!clean) return;
-
-    tokens.add(clean);
-  };
-
-  for (const category of profile?.preferences?.categories ?? []) {
-    addToken(category);
-  }
-
-  for (const interest of profile?.preferences?.interests ?? []) {
-    addToken(interest);
-  }
-
-  for (const group of Object.values(profile?.answers ?? {})) {
-    for (const value of group) {
-      addToken(value);
-    }
-  }
-
-  return tokens;
-}
+/* -------------------------------------------------------------------------- */
+/* Preference semantics                                                        */
+/* -------------------------------------------------------------------------- */
 
 function getPricePreference(
   profile: PassrProfile | null,
 ): number | undefined {
-  const budget = profile?.preferences?.budget;
+  const budget =
+    getProfilePreferences(profile).budget;
 
-  if (budget === "under-75") return 75;
-  if (budget === "75-150") return 150;
-  if (budget === "150-300") return 300;
-  if (budget === "300-plus") return 500;
+  switch (budget) {
+    case "under-75":
+      return 75;
+    case "75-150":
+      return 150;
+    case "150-300":
+      return 300;
+    case "300-plus":
+      return 500;
+    case "no-limit":
+    default:
+      return undefined;
+  }
+}
 
-  return undefined;
+function getTravelRadius(
+  profile: PassrProfile | null,
+): number | undefined {
+  const travel =
+    getProfilePreferences(profile).travel;
+
+  switch (travel) {
+    case "my-city":
+      return 25;
+    case "50-miles":
+      return 50;
+    case "few-hours":
+      return 150;
+    case "anywhere":
+      return undefined;
+    default:
+      return undefined;
+  }
 }
 
 function eventMatchesLocation(
@@ -353,22 +471,30 @@ function eventMatchesLocation(
   const fields = [
     event.city,
     event.state,
+    event.country,
     event.venue,
   ]
     .filter(Boolean)
     .map((value) => normalizeText(value!));
 
-  const targetParts = target.split(" ");
-
-  return (
-    fields.some((field) => field.includes(target)) ||
-    targetParts.some(
-      (part) =>
-        part.length >= 3 &&
-        fields.some((field) =>
-          field.includes(part),
-        ),
+  if (
+    fields.some((field) =>
+      field.includes(target),
     )
+  ) {
+    return true;
+  }
+
+  const parts = target
+    .split(" ")
+    .filter(
+      (part) => part.length >= 3,
+    );
+
+  return parts.some((part) =>
+    fields.some((field) =>
+      field.includes(part),
+    ),
   );
 }
 
@@ -378,21 +504,170 @@ function eventMatchesSubcategory(
 ): boolean {
   if (!subcategory) return true;
 
-  const target = normalizeText(subcategory);
+  const target =
+    normalizeText(subcategory);
 
   if (!target) return true;
+
+  const targetParts = target
+    .split(" ")
+    .filter(Boolean);
 
   const fields = [
     event.genre,
     event.subGenre,
     event.name,
     event.subtitle,
+    event.venue,
+    event.category,
   ]
     .filter(Boolean)
-    .map((value) => normalizeText(value!));
+    .map((value) =>
+      normalizeText(value!),
+    );
 
-  return fields.some((field) => field.includes(target));
+  return fields.some((field) => {
+    if (field.includes(target)) {
+      return true;
+    }
+
+    return targetParts.every(
+      (part) =>
+        field.includes(part),
+    );
+  });
 }
+
+/**
+ * Attempts to match an event against a specific taxonomy facet.
+ *
+ * This is deliberately tolerant because Ticketmaster does not expose
+ * Passr's taxonomy ids. We use provider-normalized fields as evidence.
+ */
+function eventMatchesFacet(
+  event: PassrEvent,
+  facet: SearchableFacet,
+): boolean {
+  const fields = [
+    event.name,
+    event.subtitle,
+    event.genre,
+    event.subGenre,
+    event.category,
+    event.venue,
+  ]
+    .filter(Boolean)
+    .map((value) =>
+      normalizeText(value!),
+    );
+
+  const labels = [
+    facet.categoryLabel,
+    facet.subcategoryLabel,
+    facet.detailLabel,
+    facet.subDetailLabel,
+  ]
+    .filter(Boolean)
+    .map((value) =>
+      normalizeText(value!),
+    )
+    .filter(
+      (value) => value.length >= 3,
+    );
+
+  if (labels.length === 0) {
+    return false;
+  }
+
+  const deepestLabels =
+    labels.slice(
+      Math.max(0, labels.length - 2),
+    );
+
+  return deepestLabels.some(
+    (label) =>
+      fields.some(
+        (field) =>
+          field.includes(label),
+      ),
+  );
+}
+
+function eventMatchesPreferredCategory(
+  event: PassrEvent,
+  profile: PassrProfile | null,
+): boolean {
+  const preferred =
+    getPreferredCategories(profile);
+
+  if (preferred.size === 0) {
+    return true;
+  }
+
+  return preferred.has(
+    normalizeRoot(event.category),
+  );
+}
+
+/**
+ * Some preferences are so specific that category-only matching is too broad.
+ *
+ * If the user selected deep interests, require either:
+ *
+ * - a direct facet/text match, or
+ * - the correct top-level category when Ticketmaster doesn't expose enough
+ *   metadata.
+ *
+ * This prevents "WNBA" preferences from returning a feed dominated by random
+ * NFL/NBA events simply because all of them are Sports.
+ */
+function eventMatchesProfileInterests(
+  event: PassrEvent,
+  profile: PassrProfile | null,
+): boolean {
+  const facets =
+    getProfileFacets(profile);
+
+  if (facets.length === 0) {
+    return eventMatchesPreferredCategory(
+      event,
+      profile,
+    );
+  }
+
+  const matchingFacets =
+    facets.filter(
+      (facet) =>
+        normalizeRoot(
+          facet.category,
+        ) ===
+        normalizeRoot(
+          event.category,
+        ),
+    );
+
+  if (matchingFacets.length === 0) {
+    return false;
+  }
+
+  return (
+    matchingFacets.some((facet) =>
+      eventMatchesFacet(
+        event,
+        facet,
+      ),
+    ) ||
+    matchingFacets.some(
+      (facet) =>
+        !facet.detail &&
+        !facet.subcategory,
+    )
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Event validation                                                            */
+/* -------------------------------------------------------------------------- */
 
 function isValidDiscoveryEvent(
   event: PassrEvent,
@@ -423,17 +698,20 @@ function isValidDiscoveryEvent(
     return false;
   }
 
-  const excludedListingTypes = new Set([
-    "suite",
-    "parking",
-    "vip",
-    "package",
-    "other",
-  ]);
+  const excludedListingTypes =
+    new Set([
+      "suite",
+      "parking",
+      "vip",
+      "package",
+      "other",
+    ]);
 
   if (
     event.listingType &&
-    excludedListingTypes.has(event.listingType)
+    excludedListingTypes.has(
+      event.listingType,
+    )
   ) {
     return false;
   }
@@ -441,27 +719,12 @@ function isValidDiscoveryEvent(
   return true;
 }
 
-/**
- * Creates a normalized identity for an event.
- *
- * This catches duplicate provider records without
- * accidentally treating different dates as identical.
- */
 function getEventIdentity(
   event: PassrEvent,
 ): string {
-  const source = event.source ?? "unknown";
-  const providerId =
-    event.sourceEventId ?? event.id;
-
-  return `${source}:${providerId}`;
+  return `${event.source}:${event.sourceEventId ?? event.id}`;
 }
 
-/**
- * When a user has a location, we also suppress repetitive
- * distant listings of the same event/artist when the local
- * inventory already contains a relevant result.
- */
 function collapseLocationNoise(
   events: PassrEvent[],
   location?: string,
@@ -470,15 +733,13 @@ function collapseLocationNoise(
     return events;
   }
 
-  const normalizedLocation =
-    normalizeText(location);
-
-  const localEvents = events.filter((event) =>
-    eventMatchesLocation(
-      event,
-      normalizedLocation,
-    ),
-  );
+  const localEvents =
+    events.filter((event) =>
+      eventMatchesLocation(
+        event,
+        location,
+      ),
+    );
 
   if (localEvents.length === 0) {
     return events;
@@ -494,121 +755,194 @@ function collapseLocationNoise(
     if (
       eventMatchesLocation(
         event,
-        normalizedLocation,
+        location,
       )
     ) {
       return true;
     }
 
-    const name = normalizeText(event.name);
-
-    if (localNames.has(name)) {
-      return false;
-    }
-
-    return true;
+    return !localNames.has(
+      normalizeText(event.name),
+    );
   });
 }
 
-function scoreEvent(
-  event: PassrEvent,
-  profile: PassrProfile | null,
-  location?: string,
-): number {
-  const desiredCategories =
-    getPreferredCategories(profile);
+/* -------------------------------------------------------------------------- */
+/* Provider mapping                                                            */
+/* -------------------------------------------------------------------------- */
 
-  const tokens = getProfileTokens(profile);
+/**
+ * Ticketmaster's classification system is intentionally isolated here.
+ *
+ * If another provider is added later, add another provider mapper instead of
+ * teaching the rest of discovery about provider-specific ids.
+ */
+function mapCategoryToTicketmaster(
+  category: string,
+): string {
+  const root =
+    category.split(".")[0] ??
+    category;
 
-  const preferredMax =
-    getPricePreference(profile);
-
-  const categoryKey =
-    normalizeRoot(event.category);
-
-  let score = 0;
-
-  if (desiredCategories.size > 0) {
-    if (desiredCategories.has(categoryKey)) {
-      score += 60;
-    } else {
-      score -= 100;
-    }
-  }
-
-  if (
-    location &&
-    eventMatchesLocation(event, location)
-  ) {
-    score += 100;
-  }
-
-  if (event.trending) {
-    score += 8;
-  }
-
-  if (event.image) {
-    score += 2;
-  }
-
-  if (event.ticketUrl) {
-    score += 2;
-  }
-
-  if (event.startingAt !== undefined) {
-    score += 1;
-  }
-
-  const eventText = [
-    event.name,
-    event.genre,
-    event.subGenre,
-    event.subtitle,
-    event.venue,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  for (const token of tokens) {
-    if (
-      token.length < 3 ||
-      TOP_LEVEL_CATEGORY_KEYS.has(token)
-    ) {
-      continue;
-    }
-
-    if (eventText.includes(token)) {
-      score += 18;
-    }
-  }
-
-  if (
-    preferredMax !== undefined &&
-    event.startingAt !== undefined
-  ) {
-    if (event.startingAt <= preferredMax) {
-      score += 10;
-    } else if (
-      event.startingAt >
-      preferredMax * 1.8
-    ) {
-      score -= 5;
-    }
-  }
-
-  return score;
+  return (
+    TICKETMASTER_CATEGORY_MAP[root] ??
+    root
+  );
 }
 
-async function fetchTicketmasterBatch(
-  params: Record<
-    string,
-    string | number | undefined
-  >,
-): Promise<PassrEvent[]> {
-  const search = new URLSearchParams();
+/**
+ * Converts a Passr taxonomy facet into a useful Ticketmaster keyword.
+ *
+ * Ticketmaster cannot receive a Passr taxonomy id. The safest fallback is
+ * therefore the deepest human-readable label.
+ */
+function facetToKeyword(
+  facet: SearchableFacet,
+): string | undefined {
+  return (
+    facet.subDetailLabel ??
+    facet.detailLabel ??
+    facet.subcategoryLabel ??
+    facet.categoryLabel
+  );
+}
 
-  for (const [key, value] of Object.entries(params)) {
+function buildProviderQueries(
+  profile: PassrProfile | null,
+  filters: DiscoveryFilters,
+): ProviderQuery[] {
+  const queries: ProviderQuery[] = [];
+
+  const term = filters.term?.trim();
+  const category =
+    filters.category?.trim();
+  const subcategory =
+    filters.subcategory?.trim();
+
+  /*
+   * Explicit search always wins.
+   */
+  if (term) {
+    queries.push({
+      keyword: term,
+    });
+  }
+
+  /*
+   * Explicit category.
+   */
+  if (category) {
+    queries.push({
+      classificationName:
+        mapCategoryToTicketmaster(
+          category,
+        ),
+    });
+  }
+
+  /*
+   * Explicit subcategory.
+   *
+   * We use it as a keyword because Passr taxonomy ids are not Ticketmaster
+   * classification ids.
+   */
+  if (subcategory) {
+    queries.push({
+      keyword: subcategory
+        .replace(/\./g, " "),
+    });
+  }
+
+  /*
+   * No explicit search:
+   * use the user's structured taxonomy.
+   */
+  if (
+    !term &&
+    !category &&
+    !subcategory
+  ) {
+    const facets =
+      getProfileFacets(profile);
+
+    /*
+     * Deep interests first.
+     */
+    for (const facet of facets) {
+      const keyword =
+        facetToKeyword(facet);
+
+      if (!keyword) continue;
+
+      queries.push({
+        keyword,
+        classificationName:
+          mapCategoryToTicketmaster(
+            facet.category,
+          ),
+      });
+    }
+
+    /*
+     * Broad category fallback.
+     */
+    for (const categoryId of getPreferredCategories(
+      profile,
+    )) {
+      queries.push({
+        classificationName:
+          mapCategoryToTicketmaster(
+            categoryId,
+          ),
+      });
+    }
+
+    /*
+     * Finally use profile tokens for selections that don't map neatly to a
+     * provider classification.
+     */
+    for (const keyword of getPreferenceTokens(
+      profile,
+    ).slice(0, 8)) {
+      queries.push({
+        keyword,
+      });
+    }
+  }
+
+  /*
+   * Truly generic discovery.
+   */
+  if (queries.length === 0) {
+    queries.push({});
+  }
+
+  /*
+   * De-dupe provider queries.
+   */
+  return Array.from(
+    new Map(
+      queries.map((query) => [
+        JSON.stringify(query),
+        query,
+      ]),
+    ).values(),
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ticketmaster HTTP                                                           */
+/* -------------------------------------------------------------------------- */
+
+async function fetchTicketmasterBatch(
+  params: ProviderQuery,
+): Promise<PassrEvent[]> {
+  const search =
+    new URLSearchParams();
+
+  for (const [key, value] of Object.entries(
+    params,
+  )) {
     if (
       value === undefined ||
       value === null ||
@@ -617,7 +951,10 @@ async function fetchTicketmasterBatch(
       continue;
     }
 
-    search.set(key, String(value));
+    search.set(
+      key,
+      String(value),
+    );
   }
 
   const url =
@@ -628,29 +965,34 @@ async function fetchTicketmasterBatch(
     url,
   );
 
-  const response = await fetch(url);
+  const response =
+    await fetch(url);
 
   if (!response.ok) {
     let errorMessage =
       `Ticketmaster request failed: ${response.status}`;
 
     try {
-      const errorPayload =
+      const payload =
         (await response.json()) as {
           error?: {
             message?: string;
           };
         };
 
-      if (errorPayload.error?.message) {
+      if (
+        payload.error?.message
+      ) {
         errorMessage =
-          `${errorMessage} — ${errorPayload.error.message}`;
+          `${errorMessage} — ${payload.error.message}`;
       }
     } catch {
-      // Keep the HTTP status error.
+      // Preserve HTTP error.
     }
 
-    throw new Error(errorMessage);
+    throw new Error(
+      errorMessage,
+    );
   }
 
   const payload =
@@ -670,7 +1012,11 @@ async function fetchTicketmasterBatch(
     );
   }
 
-  if (!Array.isArray(payload.events)) {
+  if (
+    !Array.isArray(
+      payload.events,
+    )
+  ) {
     throw new Error(
       "Ticketmaster returned an invalid events payload.",
     );
@@ -680,17 +1026,17 @@ async function fetchTicketmasterBatch(
 }
 
 async function fetchPaginatedQuery(
-  baseParams: Record<
-    string,
-    string | number | undefined
-  >,
+  baseParams: ProviderQuery,
   targetCount: number,
+  location?: string,
+  radiusMiles?: number,
 ): Promise<PassrEvent[]> {
   const events: PassrEvent[] = [];
 
   for (
     let page = 0;
-    page < DISCOVERY_MAX_PAGES_PER_QUERY &&
+    page <
+      DISCOVERY_MAX_PAGES_PER_QUERY &&
     events.length < targetCount;
     page += 1
   ) {
@@ -698,20 +1044,34 @@ async function fetchPaginatedQuery(
       await fetchTicketmasterBatch({
         ...baseParams,
         countryCode:
-          baseParams.countryCode ?? "US",
+          baseParams.countryCode ??
+          "US",
+        city:
+          baseParams.city,
+        radius:
+          radiusMiles,
+        unit:
+          radiusMiles
+            ? "miles"
+            : undefined,
         page,
-        size: DISCOVERY_PAGE_SIZE,
+        size:
+          DISCOVERY_PAGE_SIZE,
       });
 
-    if (batch.length === 0) {
-      break;
-    }
+    const valid =
+      batch.filter(
+        isValidDiscoveryEvent,
+      );
 
     events.push(
-      ...batch.filter(isValidDiscoveryEvent),
+      ...valid,
     );
 
-    if (batch.length < DISCOVERY_PAGE_SIZE) {
+    if (
+      batch.length <
+      DISCOVERY_PAGE_SIZE
+    ) {
       break;
     }
   }
@@ -719,210 +1079,479 @@ async function fetchPaginatedQuery(
   return events;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Ranking                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function scoreEvent(
+  event: PassrEvent,
+  profile: PassrProfile | null,
+  location?: string,
+): number {
+  const preferences =
+    getProfilePreferences(
+      profile,
+    );
+
+  const preferredCategories =
+    getPreferredCategories(
+      profile,
+    );
+
+  const facets =
+    getProfileFacets(profile);
+
+  const preferredMax =
+    getPricePreference(
+      profile,
+    );
+
+  let score = 0;
+
+  const eventCategory =
+    normalizeRoot(
+      event.category,
+    );
+
+  if (
+    preferredCategories.has(
+      eventCategory,
+    )
+  ) {
+    score += 60;
+  }
+
+  if (
+    facets.some(
+      (facet) =>
+        eventMatchesFacet(
+          event,
+          facet,
+        ),
+    )
+  ) {
+    score += 80;
+  }
+
+  if (
+    location &&
+    eventMatchesLocation(
+      event,
+      location,
+    )
+  ) {
+    score += 100;
+  }
+
+  if (event.trending) {
+    score += 8;
+  }
+
+  if (event.image) {
+    score += 3;
+  }
+
+  if (event.ticketUrl) {
+    score += 3;
+  }
+
+  if (
+    event.startingAt !==
+    undefined
+  ) {
+    score += 2;
+  }
+
+  const eventText = [
+    event.name,
+    event.genre,
+    event.subGenre,
+    event.subtitle,
+    event.venue,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  for (const token of getPreferenceTokens(
+    profile,
+  )) {
+    if (
+      token.length < 3 ||
+      TOP_LEVEL_CATEGORY_KEYS.has(
+        token,
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      eventText.includes(token)
+    ) {
+      score += 20;
+    }
+  }
+
+  if (
+    preferredMax !==
+      undefined &&
+    event.startingAt !==
+      undefined
+  ) {
+    if (
+      event.startingAt <=
+      preferredMax
+    ) {
+      score += 15;
+    } else if (
+      event.startingAt >
+      preferredMax * 1.8
+    ) {
+      score -= 8;
+    }
+  }
+
+  /*
+   * Vibe-aware ranking.
+   */
+  for (const vibe of preferences.vibes ?? []) {
+    switch (vibe) {
+      case "cheapest-seat":
+        if (
+          event.startingAt !==
+          undefined
+        ) {
+          score += Math.max(
+            0,
+            20 -
+              event.startingAt /
+                10,
+          );
+        }
+        break;
+
+      case "big-nights":
+        if (
+          event.venue
+            ?.toLowerCase()
+            .includes("arena")
+        ) {
+          score += 12;
+        }
+        break;
+
+      case "small-rooms":
+        if (
+          event.venue
+            ?.toLowerCase()
+            .match(
+              /club|theatre|theater|hall|room|lounge|studio/,
+            )
+        ) {
+          score += 12;
+        }
+        break;
+
+      case "family-friendly":
+        if (
+          event.category ===
+          "Family"
+        ) {
+          score += 20;
+        }
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  return score;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public discovery API                                                        */
+/* -------------------------------------------------------------------------- */
+
 export async function fetchDiscoveryPool(
   profile: PassrProfile | null,
   filters: DiscoveryFilters = {},
 ): Promise<PassrEvent[]> {
-  const term = filters.term?.trim();
-  const category = filters.category?.trim();
-  const subcategory = filters.subcategory?.trim();
+  const term =
+    filters.term?.trim();
+
+  const category =
+    filters.category?.trim();
+
+  const subcategory =
+    filters.subcategory?.trim();
 
   const profileLocation =
-    getProfileLocation(profile);
+    getProfileLocation(
+      profile,
+    );
 
   const location =
     filters.location?.trim() ||
     profileLocation;
 
-  const desiredCategories =
-    getPreferredCategories(profile);
+  const radiusMiles =
+    filters.radiusMiles ??
+    getTravelRadius(profile);
 
-  const queryDefinitions: Record<
-    string,
-    string | number | undefined
-  >[] = [];
+  const queries =
+    buildProviderQueries(
+      profile,
+      filters,
+    );
 
-  if (term) {
-    queryDefinitions.push({
-      keyword: term,
-    });
-  }
+  const perQueryTarget =
+    Math.ceil(
+      DISCOVERY_TARGET_POOL /
+        Math.max(
+          1,
+          queries.length,
+        ),
+    );
 
+  const batches =
+    await Promise.all(
+      queries.map(
+        (query) =>
+          fetchPaginatedQuery(
+            query,
+            perQueryTarget,
+            location,
+            radiusMiles,
+          ).catch((error) => {
+            console.error(
+              "Passr discovery query failed:",
+              {
+                query,
+                error,
+              },
+            );
+
+            return [];
+          }),
+      ),
+    );
+
+  let filtered =
+    batches
+      .flat()
+      .filter(
+        isValidDiscoveryEvent,
+      );
+
+  /*
+   * Explicit category filter.
+   */
   if (category) {
-    queryDefinitions.push({
-      classificationName:
-        TICKETMASTER_CATEGORY_MAP[category] ??
-        category,
-    });
+    filtered =
+      filtered.filter(
+        (event) =>
+          normalizeRoot(
+            event.category,
+          ) ===
+          normalizeRoot(
+            category,
+          ),
+      );
   }
 
+  /*
+   * Explicit subcategory filter.
+   */
   if (subcategory) {
-    queryDefinitions.push({
-      keyword: subcategory,
-    });
+    filtered =
+      filtered.filter(
+        (event) =>
+          eventMatchesSubcategory(
+            event,
+            subcategory,
+          ),
+      );
   }
 
+  /*
+   * Explicit location filter is strict.
+   */
+  if (filters.location?.trim()) {
+    filtered =
+      filtered.filter(
+        (event) =>
+          eventMatchesLocation(
+            event,
+            filters.location,
+          ),
+      );
+  }
+
+  /*
+   * Personalized home discovery is stricter than generic search.
+   *
+   * Search for "concerts" should not suddenly become a personalized WNBA
+   * feed just because the user likes WNBA.
+   */
   if (
     !term &&
     !category &&
-    !subcategory
+    !subcategory &&
+    profile
   ) {
-    for (const preferred of desiredCategories) {
-      queryDefinitions.push({
-        classificationName:
-          TICKETMASTER_CATEGORY_MAP[preferred] ??
-          preferred,
-      });
-    }
+    const facets =
+      getProfileFacets(profile);
 
-    const interestKeywords =
-      Array.from(getProfileTokens(profile))
-        .filter(
-          (token) =>
-            token.length >= 3 &&
-            !TOP_LEVEL_CATEGORY_KEYS.has(token),
-        )
-        .slice(0, 6);
+    if (
+      facets.length > 0
+    ) {
+      const personalized =
+        filtered.filter(
+          (event) =>
+            eventMatchesProfileInterests(
+              event,
+              profile,
+            ),
+        );
 
-    for (const keyword of interestKeywords) {
-      queryDefinitions.push({
-        keyword,
-      });
-    }
+      /*
+       * Don't return an empty home feed merely because Ticketmaster's
+       * normalized metadata isn't detailed enough.
+       *
+       * Fall back to category-level matching.
+       */
+      if (
+        personalized.length >
+        0
+      ) {
+        filtered =
+          personalized;
+      } else {
+        filtered =
+          filtered.filter(
+            (event) =>
+              eventMatchesPreferredCategory(
+                event,
+                profile,
+              ),
+          );
+      }
+    } else {
+      const preferred =
+        getPreferredCategories(
+          profile,
+        );
 
-    if (queryDefinitions.length === 0) {
-      queryDefinitions.push({});
+      if (
+        preferred.size > 0
+      ) {
+        filtered =
+          filtered.filter(
+            (event) =>
+              preferred.has(
+                normalizeRoot(
+                  event.category,
+                ),
+              ),
+          );
+      }
     }
   }
 
-  const uniqueQueries = Array.from(
-    new Map(
-      queryDefinitions.map((query) => [
-        JSON.stringify(query),
-        query,
-      ]),
-    ).values(),
-  );
-
-  const perQueryTarget = Math.ceil(
-    DISCOVERY_TARGET_POOL /
-      Math.max(1, uniqueQueries.length),
-  );
-
-  const batches = await Promise.all(
-    uniqueQueries.map((query) =>
-      fetchPaginatedQuery(
-        query,
-        perQueryTarget,
-      ).catch((error) => {
-        console.error(
-          "Passr discovery query failed:",
-          {
-            query,
-            error,
-          },
-        );
-
-        return [];
-      }),
-    ),
-  );
-
-  let filtered = batches
-    .flat()
-    .filter(isValidDiscoveryEvent)
-    .filter((event) => {
-      if (
-        category &&
-        normalizeRoot(event.category) !==
-          normalizeRoot(category)
-      ) {
-        return false;
-      }
-
-      if (
-        subcategory &&
-        !eventMatchesSubcategory(
-          event,
-          subcategory,
-        )
-      ) {
-        return false;
-      }
-
-      if (
-        filters.location &&
-        !eventMatchesLocation(
-          event,
-          filters.location,
-        )
-      ) {
-        return false;
-      }
-
-      if (
-        desiredCategories.size > 0 &&
-        !category &&
-        !term &&
-        !subcategory
-      ) {
-        return desiredCategories.has(
-          normalizeRoot(event.category),
-        );
-      }
-
-      return true;
-    });
-
-  filtered = collapseLocationNoise(
-    filtered,
-    location,
-  );
+  /*
+   * If a profile location is available, reduce repeated distant versions
+   * of an event while keeping local inventory.
+   */
+  filtered =
+    collapseLocationNoise(
+      filtered,
+      location,
+    );
 
   /*
-   * Strong provider-level identity dedupe.
+   * Strong provider identity dedupe.
    */
   const identityMap =
-    new Map<string, PassrEvent>();
+    new Map<
+      string,
+      PassrEvent
+    >();
 
   for (const event of filtered) {
     const identity =
-      getEventIdentity(event);
+      getEventIdentity(
+        event,
+      );
 
     const existing =
-      identityMap.get(identity);
+      identityMap.get(
+        identity,
+      );
 
     if (!existing) {
-      identityMap.set(identity, event);
+      identityMap.set(
+        identity,
+        event,
+      );
       continue;
     }
 
-    /*
-     * Keep the richer record.
-     */
     const existingScore =
-      Number(Boolean(existing.image)) +
-      Number(Boolean(existing.ticketUrl)) +
-      Number(existing.startingAt !== undefined);
+      Number(
+        Boolean(
+          existing.image,
+        ),
+      ) +
+      Number(
+        Boolean(
+          existing.ticketUrl,
+        ),
+      ) +
+      Number(
+        existing.startingAt !==
+          undefined,
+      );
 
     const newScore =
-      Number(Boolean(event.image)) +
-      Number(Boolean(event.ticketUrl)) +
-      Number(event.startingAt !== undefined);
+      Number(
+        Boolean(event.image),
+      ) +
+      Number(
+        Boolean(
+          event.ticketUrl,
+        ),
+      ) +
+      Number(
+        event.startingAt !==
+          undefined,
+      );
 
-    if (newScore > existingScore) {
-      identityMap.set(identity, event);
+    if (
+      newScore >
+      existingScore
+    ) {
+      identityMap.set(
+        identity,
+        event,
+      );
     }
   }
 
-  filtered = Array.from(
-    identityMap.values(),
-  );
+  filtered =
+    Array.from(
+      identityMap.values(),
+    );
 
-  const merged =
-    deduplicateEvents(filtered);
+  /*
+   * Cross-query normalized dedupe.
+   */
+  filtered =
+    deduplicateEvents(
+      filtered,
+    );
 
-  return merged
+  return filtered
     .sort(
       (a, b) =>
         scoreEvent(
@@ -942,6 +1571,10 @@ export async function fetchDiscoveryPool(
     );
 }
 
+/* -------------------------------------------------------------------------- */
+/* Home rails                                                                  */
+/* -------------------------------------------------------------------------- */
+
 export function buildHomeRails(
   events: PassrEvent[],
   profile: PassrProfile | null,
@@ -955,32 +1588,66 @@ export function buildHomeRails(
   }>;
 } {
   const valid =
-    events.filter(isValidDiscoveryEvent);
+    events.filter(
+      isValidDiscoveryEvent,
+    );
 
   const location =
-    getProfileLocation(profile);
+    getProfileLocation(
+      profile,
+    );
 
   /*
-   * Generic trending should NOT be personalized.
-   *
-   * We deliberately score this separately from
-   * Suggested for You.
+   * Trending is deliberately NOT personalized.
    */
-  const trending = [...valid]
-    .sort((a, b) => {
-      const aScore =
-        Number(Boolean(a.trending)) * 100 +
-        Number(Boolean(a.image)) * 2 +
-        Number(Boolean(a.ticketUrl)) * 2;
+  const trending =
+    [...valid]
+      .sort((a, b) => {
+        const aScore =
+          Number(
+            Boolean(
+              a.trending,
+            ),
+          ) *
+            100 +
+          Number(
+            Boolean(
+              a.image,
+            ),
+          ) *
+            2 +
+          Number(
+            Boolean(
+              a.ticketUrl,
+            ),
+          ) *
+            2;
 
-      const bScore =
-        Number(Boolean(b.trending)) * 100 +
-        Number(Boolean(b.image)) * 2 +
-        Number(Boolean(b.ticketUrl)) * 2;
+        const bScore =
+          Number(
+            Boolean(
+              b.trending,
+            ),
+          ) *
+            100 +
+          Number(
+            Boolean(
+              b.image,
+            ),
+          ) *
+            2 +
+          Number(
+            Boolean(
+              b.ticketUrl,
+            ),
+          ) *
+            2;
 
-      return bScore - aScore;
-    })
-    .slice(0, 10);
+        return (
+          bScore - aScore
+        );
+      })
+      .slice(0, 10);
 
   const ranked =
     [...valid].sort(
@@ -997,56 +1664,56 @@ export function buildHomeRails(
         ),
     );
 
-  const desiredCategories =
-    getPreferredCategories(profile);
-
-  const personalizedRanked =
-    desiredCategories.size > 0
-      ? ranked.filter((event) =>
-          desiredCategories.has(
-            normalizeRoot(event.category),
-          ),
-        )
-      : ranked;
-
   const suggested =
-    personalizedRanked.slice(0, 25);
+    ranked.slice(0, 25);
 
+  /*
+   * Build category rails from actual results rather than inventing empty
+   * categories from the taxonomy.
+   */
   const categorySet =
     new Set<string>();
 
-  if (desiredCategories.size > 0) {
-    for (const category of desiredCategories) {
-      categorySet.add(category);
-    }
-  } else {
-    for (const event of ranked) {
-      const categoryKey =
-        normalizeRoot(event.category);
+  for (const event of ranked) {
+    const key =
+      normalizeRoot(
+        event.category,
+      );
 
-      if (categoryKey) {
-        categorySet.add(categoryKey);
-      }
+    if (key) {
+      categorySet.add(
+        key,
+      );
     }
   }
 
   const categories =
-    Array.from(categorySet)
-      .map((categoryKey) => ({
-        id: categoryKey,
-        title:
-          CATEGORY_TITLE_MAP[categoryKey] ??
-          `${categoryKey} for you`,
-        events: ranked
-          .filter(
-            (event) =>
-              normalizeRoot(event.category) ===
-              categoryKey,
-          )
-          .slice(0, 25),
-      }))
+    Array.from(
+      categorySet,
+    )
+      .map(
+        (categoryKey) => ({
+          id: categoryKey,
+          title:
+            CATEGORY_TITLE_MAP[
+              categoryKey
+            ] ??
+            categoryKey,
+          events: ranked
+            .filter(
+              (event) =>
+                normalizeRoot(
+                  event.category,
+                ) ===
+                categoryKey,
+            )
+            .slice(0, 25),
+        }),
+      )
       .filter(
-        (rail) => rail.events.length > 0,
+        (rail) =>
+          rail.events.length >
+          0,
       );
 
   return {
@@ -1055,7 +1722,4 @@ export function buildHomeRails(
     categories,
   };
 }
-
-export {
-  normalizeRoot,
-};
+```
