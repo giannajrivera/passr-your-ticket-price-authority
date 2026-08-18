@@ -563,13 +563,15 @@ function SearchResults() {
             0 && (
             <div>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {getCategoryData(
-                  category!,
-                )?.label ??
+                {String(
                   getCategoryData(
                     category!,
-                  )?.name ??
-                  ""}
+                  )?.label ??
+                    getCategoryData(
+                      category!,
+                    )?.name ??
+                    "",
+                )}
               </h3>
 
               <div className="flex flex-wrap gap-2">
