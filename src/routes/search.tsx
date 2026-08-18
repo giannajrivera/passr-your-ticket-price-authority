@@ -843,4 +843,3 @@ function SearchEventCard({
     </Link>
   );
 }
-```
