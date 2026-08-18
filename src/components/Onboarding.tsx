@@ -92,8 +92,29 @@ export function Onboarding({ onDone }: { onDone?: () => void }) {
   const [expanded, setExpanded] = useState<string[]>([]);
 
   useEffect(() => {
+    // Preview/demo helper: start each fresh preview session (or ?onboarding=1)
+    // at the very beginning of onboarding.
+    const params = new URLSearchParams(window.location.search);
+    const forced = params.get("onboarding") === "1";
+    const host = window.location.hostname;
+    const isPreview =
+      host.includes("lovableproject.com") ||
+      host.includes("-preview--") ||
+      host === "localhost";
+    const sessionKey = "passr:onboarding-session";
+    const freshSession =
+      isPreview && !window.sessionStorage.getItem(sessionKey);
+
+    if (forced || freshSession) {
+      window.sessionStorage.setItem(sessionKey, "1");
+      clearProfile();
+      setOpen(true);
+      return;
+    }
+
     if (!getProfile()) setOpen(true);
   }, []);
+
 
   const steps: Step[] = useMemo(() => {
     const drills: Step[] = prefs.categories.map((categoryId) => ({
