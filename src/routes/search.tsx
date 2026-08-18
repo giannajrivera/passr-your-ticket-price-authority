@@ -254,28 +254,30 @@ export const Route = createFileRoute(
     search: Record<string, unknown>,
   ): SearchParams => {
     const q =
-      typeof search.q === "string"
-        ? search.q
+      typeof search["q"] === "string"
+        ? search["q"]
         : undefined;
 
     const category =
-      typeof search.category ===
+      typeof search["category"] ===
       "string"
-        ? search.category
+        ? search["category"]
         : undefined;
 
     const subcategory =
-      typeof search.subcategory ===
+      typeof search["subcategory"] ===
       "string"
-        ? search.subcategory
+        ? search["subcategory"]
         : undefined;
 
+    const rawPage = search["page"];
+
     const page =
-      typeof search.page === "number" &&
-      Number.isFinite(search.page)
+      typeof rawPage === "number" &&
+      Number.isFinite(rawPage)
         ? Math.max(
             0,
-            Math.floor(search.page),
+            Math.floor(rawPage),
           )
         : undefined;
 
