@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as EventEventIdRouteImport } from './routes/event.$eventId'
 import { Route as ApiEventsTicketmasterRouteImport } from './routes/api.events.ticketmaster'
@@ -17,6 +18,11 @@ import { Route as ApiEventsTicketmasterRouteImport } from './routes/api.events.t
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WatchlistRoute = WatchlistRouteImport.update({
@@ -37,12 +43,14 @@ const ApiEventsTicketmasterRoute = ApiEventsTicketmasterRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/search': typeof SearchRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
   '/api/events/ticketmaster': typeof ApiEventsTicketmasterRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/search': typeof SearchRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
   '/api/events/ticketmaster': typeof ApiEventsTicketmasterRoute
@@ -50,18 +58,30 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/search': typeof SearchRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
   '/api/events/ticketmaster': typeof ApiEventsTicketmasterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/watchlist' | '/event/$eventId' | '/api/events/ticketmaster'
+  fullPaths:
+    | '/'
+    | '/search'
+    | '/watchlist'
+    | '/event/$eventId'
+    | '/api/events/ticketmaster'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/watchlist' | '/event/$eventId' | '/api/events/ticketmaster'
+  to:
+    | '/'
+    | '/search'
+    | '/watchlist'
+    | '/event/$eventId'
+    | '/api/events/ticketmaster'
   id:
     | '__root__'
     | '/'
+    | '/search'
     | '/watchlist'
     | '/event/$eventId'
     | '/api/events/ticketmaster'
@@ -69,6 +89,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SearchRoute: typeof SearchRoute
   WatchlistRoute: typeof WatchlistRoute
   EventEventIdRoute: typeof EventEventIdRoute
   ApiEventsTicketmasterRoute: typeof ApiEventsTicketmasterRoute
@@ -81,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/watchlist': {
@@ -109,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SearchRoute: SearchRoute,
   WatchlistRoute: WatchlistRoute,
   EventEventIdRoute: EventEventIdRoute,
   ApiEventsTicketmasterRoute: ApiEventsTicketmasterRoute,
