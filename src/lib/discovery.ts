@@ -1,5 +1,6 @@
 import type { PassrProfile } from "@/lib/profile";
 import type { PassrEvent } from "@/lib/types";
+
 import { deduplicateEvents } from "@/lib/event-utils";
 
 export type DiscoveryFilters = {
@@ -50,20 +51,19 @@ const TOP_LEVEL_CATEGORY_KEYS = new Set([
 ]);
 
 /**
- * Discovery is backed by live provider data.
- *
- * Mock data may still exist elsewhere in the prototype, but it must never
- * be used to fill discovery/search results.
- *
- * Keep the pool significantly larger than the number of cards displayed in
- * the UI so personalization and category balancing have enough candidates.
+ * Keep the live discovery pool larger than the number
+ * of cards displayed in the UI.
  */
 const DISCOVERY_PAGE_SIZE = 100;
 const DISCOVERY_MAX_PAGES_PER_QUERY = 6;
 const DISCOVERY_TARGET_POOL = 150;
 
-function normalizeRoot(value: string): string {
-  const trimmed = value.trim().toLowerCase();
+function normalizeRoot(
+  value: string,
+): string {
+  const trimmed = value
+    .trim()
+    .toLowerCase();
 
   if (!trimmed) return "";
 
@@ -203,7 +203,8 @@ export function getPreferredCategories(
 ): Set<string> {
   const desired = new Set<string>();
 
-  for (const item of profile?.preferences?.categories ?? []) {
+  for (const item of
+    profile?.preferences?.categories ?? []) {
     const normalized = normalizeRoot(item);
 
     if (normalized) {
@@ -211,7 +212,8 @@ export function getPreferredCategories(
     }
   }
 
-  for (const item of profile?.answers?.["categories"] ?? []) {
+  for (const item of
+    profile?.answers?.["categories"] ?? []) {
     const normalized = normalizeRoot(item);
 
     if (normalized) {
@@ -227,7 +229,9 @@ function getProfileTokens(
 ): Set<string> {
   const tokens = new Set<string>();
 
-  const addToken = (value: string | undefined) => {
+  const addToken = (
+    value: string | undefined,
+  ) => {
     if (!value) return;
 
     const clean = value
@@ -240,15 +244,19 @@ function getProfileTokens(
     tokens.add(clean);
   };
 
-  for (const category of profile?.preferences?.categories ?? []) {
+  for (const category of
+    profile?.preferences?.categories ?? []) {
     addToken(category);
   }
 
-  for (const interest of profile?.preferences?.interests ?? []) {
+  for (const interest of
+    profile?.preferences?.interests ?? []) {
     addToken(interest);
   }
 
-  for (const group of Object.values(profile?.answers ?? {})) {
+  for (const group of Object.values(
+    profile?.answers ?? {},
+  )) {
     for (const value of group) {
       addToken(value);
     }
@@ -260,7 +268,8 @@ function getProfileTokens(
 function getPricePreference(
   profile: PassrProfile | null,
 ): number | undefined {
-  const budget = profile?.preferences?.budget;
+  const budget =
+    profile?.preferences?.budget;
 
   if (budget === "under-75") return 75;
   if (budget === "75-150") return 150;
@@ -290,9 +299,13 @@ function eventMatchesLocation(
     event.venue,
   ]
     .filter(Boolean)
-    .map((value) => value!.toLowerCase());
+    .map((value) =>
+      value!.toLowerCase(),
+    );
 
-  return fields.some((field) => field.includes(target));
+  return fields.some((field) =>
+    field.includes(target),
+  );
 }
 
 function eventMatchesSubcategory(
@@ -321,40 +334,65 @@ function eventMatchesSubcategory(
         .replace(/[^a-z0-9]+/g, " "),
     );
 
-  return fields.some((field) => field.includes(target));
+  return fields.some((field) =>
+    field.includes(target),
+  );
 }
 
 /**
- * Discovery must only contain legitimate event records.
+ * Discovery must only contain legitimate live
+ * provider records.
  *
- * This deliberately does NOT require an image or price. A real event can
- * legitimately be missing either of those fields.
+ * We intentionally do NOT require:
+ * - image
+ * - price
+ * - venue
+ *
+ * Ticketmaster can legitimately omit those fields.
  */
 function isValidDiscoveryEvent(
   event: PassrEvent,
 ): boolean {
   if (!event) return false;
 
-  if (event.source === "mock") return false;
+  if (event.source === "mock") {
+    return false;
+  }
 
-  if (!event.sourceEventId) return false;
-  if (!event.id) return false;
-  if (!event.name?.trim()) return false;
-  if (!event.date?.trim()) return false;
-  if (!event.venue?.trim()) return false;
-  if (!event.category) return false;
+  if (!event.sourceEventId) {
+    return false;
+  }
 
-  const excludedListingTypes = new Set([
-    "suite",
-    "parking",
-    "vip",
-    "package",
-    "other",
-  ]);
+  if (!event.id) {
+    return false;
+  }
+
+  if (!event.name?.trim()) {
+    return false;
+  }
+
+  if (!event.date?.trim()) {
+    return false;
+  }
+
+  if (!event.category) {
+    return false;
+  }
+
+  const excludedListingTypes =
+    new Set([
+      "suite",
+      "parking",
+      "vip",
+      "package",
+      "other",
+    ]);
 
   if (
     event.listingType &&
-    excludedListingTypes.has(event.listingType)
+    excludedListingTypes.has(
+      event.listingType,
+    )
   ) {
     return false;
   }
@@ -370,32 +408,37 @@ function scoreEvent(
   const desiredCategories =
     getPreferredCategories(profile);
 
-  const tokens = getProfileTokens(profile);
-  const preferredMax = getPricePreference(profile);
-  const categoryKey = normalizeRoot(event.category);
+  const tokens =
+    getProfileTokens(profile);
+
+  const preferredMax =
+    getPricePreference(profile);
+
+  const categoryKey =
+    normalizeRoot(event.category);
 
   let score = 0;
 
-  /*
-   * Explicit category preferences are intentionally very strong.
-   * A trending event should not overpower a user's stated interests.
-   */
   if (desiredCategories.size > 0) {
-    if (desiredCategories.has(categoryKey)) {
+    if (
+      desiredCategories.has(categoryKey)
+    ) {
       score += 60;
     } else {
       score -= 100;
     }
   }
 
-  if (location && eventMatchesLocation(event, location)) {
+  if (
+    location &&
+    eventMatchesLocation(
+      event,
+      location,
+    )
+  ) {
     score += 30;
   }
 
-  /*
-   * Trending is deliberately a small signal.
-   * It should never overpower explicit preferences.
-   */
   if (event.trending) {
     score += 4;
   }
@@ -408,7 +451,9 @@ function scoreEvent(
     score += 2;
   }
 
-  if (event.startingAt !== undefined) {
+  if (
+    event.startingAt !== undefined
+  ) {
     score += 1;
   }
 
@@ -426,12 +471,16 @@ function scoreEvent(
   for (const token of tokens) {
     if (
       token.length < 3 ||
-      TOP_LEVEL_CATEGORY_KEYS.has(token)
+      TOP_LEVEL_CATEGORY_KEYS.has(
+        token,
+      )
     ) {
       continue;
     }
 
-    if (eventText.includes(token)) {
+    if (
+      eventText.includes(token)
+    ) {
       score += 18;
     }
   }
@@ -440,10 +489,14 @@ function scoreEvent(
     preferredMax !== undefined &&
     event.startingAt !== undefined
   ) {
-    if (event.startingAt <= preferredMax) {
+    if (
+      event.startingAt <=
+      preferredMax
+    ) {
       score += 10;
     } else if (
-      event.startingAt > preferredMax * 1.8
+      event.startingAt >
+      preferredMax * 1.8
     ) {
       score -= 5;
     }
@@ -452,15 +505,28 @@ function scoreEvent(
   return score;
 }
 
+/**
+ * Calls our server-side Ticketmaster route.
+ *
+ * IMPORTANT:
+ * Ticketmaster itself is never called from the browser.
+ * The browser only calls:
+ *
+ * /api/events/ticketmaster
+ */
 async function fetchTicketmasterBatch(
   params: Record<
     string,
     string | number | undefined
   >,
 ): Promise<PassrEvent[]> {
-  const search = new URLSearchParams();
+  const search =
+    new URLSearchParams();
 
-  for (const [key, value] of Object.entries(params)) {
+  for (const [
+    key,
+    value,
+  ] of Object.entries(params)) {
     if (
       value === undefined ||
       value === null ||
@@ -469,28 +535,90 @@ async function fetchTicketmasterBatch(
       continue;
     }
 
-    search.set(key, String(value));
-  }
-
-  const response = await fetch(
-    `/api/events/ticketmaster?${search.toString()}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Ticketmaster request failed: ${response.status}`,
+    search.set(
+      key,
+      String(value),
     );
   }
 
-  const payload = (await response.json()) as {
-    ok?: boolean;
-    events?: PassrEvent[];
-  };
+  const url =
+    `/api/events/ticketmaster?${search.toString()}`;
 
-  return payload.ok &&
-    Array.isArray(payload.events)
-    ? payload.events
-    : [];
+  console.log(
+    "Passr → Ticketmaster search:",
+    url,
+  );
+
+  const response =
+    await fetch(url);
+
+  if (!response.ok) {
+    let errorMessage =
+      `Ticketmaster request failed: ${response.status}`;
+
+    try {
+      const errorPayload =
+        (await response.json()) as {
+          error?: {
+            message?: string;
+          };
+        };
+
+      if (
+        errorPayload.error?.message
+      ) {
+        errorMessage =
+          `${errorMessage} — ${errorPayload.error.message}`;
+      }
+    } catch {
+      // Keep the HTTP status error.
+    }
+
+    throw new Error(
+      errorMessage,
+    );
+  }
+
+  const payload =
+    (await response.json()) as {
+      ok?: boolean;
+      events?: PassrEvent[];
+      error?: {
+        kind?: string;
+        message?: string;
+      };
+    };
+
+  /*
+   * This is important.
+   *
+   * Previously, a server response such as:
+   *
+   * { ok: false, error: ... }
+   *
+   * silently became [].
+   *
+   * Now the actual error reaches React Query,
+   * which lets us see that the live provider failed.
+   */
+  if (payload.ok !== true) {
+    throw new Error(
+      payload.error?.message ??
+        "Ticketmaster returned an unsuccessful response.",
+    );
+  }
+
+  if (
+    !Array.isArray(
+      payload.events,
+    )
+  ) {
+    throw new Error(
+      "Ticketmaster returned an invalid events payload.",
+    );
+  }
+
+  return payload.events;
 }
 
 async function fetchPaginatedQuery(
@@ -504,32 +632,40 @@ async function fetchPaginatedQuery(
 
   for (
     let page = 0;
-    page < DISCOVERY_MAX_PAGES_PER_QUERY &&
-    events.length < targetCount;
+    page <
+      DISCOVERY_MAX_PAGES_PER_QUERY &&
+    events.length <
+      targetCount;
     page += 1
   ) {
-    const batch = await fetchTicketmasterBatch({
-      ...baseParams,
-      countryCode:
-        baseParams.countryCode ?? "US",
-      page,
-      size: DISCOVERY_PAGE_SIZE,
-    });
+    const batch =
+      await fetchTicketmasterBatch({
+        ...baseParams,
+
+        countryCode:
+          baseParams.countryCode ??
+          "US",
+
+        page,
+
+        size:
+          DISCOVERY_PAGE_SIZE,
+      });
 
     if (batch.length === 0) {
       break;
     }
 
     events.push(
-      ...batch.filter(isValidDiscoveryEvent),
+      ...batch.filter(
+        isValidDiscoveryEvent,
+      ),
     );
 
-    /*
-     * If Ticketmaster gives us fewer than the requested
-     * page size, there probably isn't another full page
-     * of inventory.
-     */
-    if (batch.length < DISCOVERY_PAGE_SIZE) {
+    if (
+      batch.length <
+      DISCOVERY_PAGE_SIZE
+    ) {
       break;
     }
   }
@@ -541,11 +677,17 @@ export async function fetchDiscoveryPool(
   profile: PassrProfile | null,
   filters: DiscoveryFilters = {},
 ): Promise<PassrEvent[]> {
-  const term = filters.term?.trim();
-  const category = filters.category?.trim();
+  const term =
+    filters.term?.trim();
+
+  const category =
+    filters.category?.trim();
+
   const subcategory =
     filters.subcategory?.trim();
-  const location = filters.location?.trim();
+
+  const location =
+    filters.location?.trim();
 
   const desiredCategories =
     getPreferredCategories(profile);
@@ -557,6 +699,12 @@ export async function fetchDiscoveryPool(
 
   /*
    * Direct search takes priority.
+   *
+   * Example:
+   * "Olivia Dean"
+   *
+   * becomes:
+   * keyword=Olivia Dean
    */
   if (term) {
     queryDefinitions.push({
@@ -565,20 +713,19 @@ export async function fetchDiscoveryPool(
   }
 
   /*
-   * Category searches use Ticketmaster's classification
-   * where possible.
+   * Category searches.
    */
   if (category) {
     queryDefinitions.push({
       classificationName:
-        TICKETMASTER_CATEGORY_MAP[category] ??
-        category,
+        TICKETMASTER_CATEGORY_MAP[
+          category
+        ] ?? category,
     });
   }
 
   /*
-   * Subcategories/interests get their own keyword query
-   * so the provider can return a wider pool.
+   * Subcategories/interests.
    */
   if (subcategory) {
     queryDefinitions.push({
@@ -587,36 +734,38 @@ export async function fetchDiscoveryPool(
   }
 
   /*
-   * Homepage discovery:
-   *
-   * If the user has preferences, query each preferred
-   * category independently instead of allowing one huge
-   * category to dominate the result pool.
+   * Homepage discovery.
    */
   if (
     !term &&
     !category &&
     !subcategory
   ) {
-    for (const preferred of desiredCategories) {
+    for (const preferred of
+      desiredCategories) {
       queryDefinitions.push({
         classificationName:
-          TICKETMASTER_CATEGORY_MAP[preferred] ??
-          preferred,
+          TICKETMASTER_CATEGORY_MAP[
+            preferred
+          ] ?? preferred,
       });
     }
 
-    const interestKeywords = Array.from(
-      getProfileTokens(profile),
-    )
-      .filter(
-        (token) =>
-          token.length >= 3 &&
-          !TOP_LEVEL_CATEGORY_KEYS.has(token),
+    const interestKeywords =
+      Array.from(
+        getProfileTokens(profile),
       )
-      .slice(0, 6);
+        .filter(
+          (token) =>
+            token.length >= 3 &&
+            !TOP_LEVEL_CATEGORY_KEYS.has(
+              token,
+            ),
+        )
+        .slice(0, 6);
 
-    for (const keyword of interestKeywords) {
+    for (const keyword of
+      interestKeywords) {
       queryDefinitions.push({
         keyword,
       });
@@ -624,98 +773,143 @@ export async function fetchDiscoveryPool(
 
     /*
      * No preferences yet:
-     * request broad real inventory rather than mock
-     * placeholders.
+     * get broad live inventory.
      */
-    if (queryDefinitions.length === 0) {
+    if (
+      queryDefinitions.length === 0
+    ) {
       queryDefinitions.push({});
     }
   }
 
   /*
-   * Remove identical provider queries before making
-   * requests.
+   * Remove duplicate provider queries.
    */
-  const uniqueQueries = Array.from(
-    new Map(
-      queryDefinitions.map((query) => [
-        JSON.stringify(query),
-        query,
-      ]),
-    ).values(),
-  );
+  const uniqueQueries =
+    Array.from(
+      new Map(
+        queryDefinitions.map(
+          (query) => [
+            JSON.stringify(
+              query,
+            ),
+            query,
+          ],
+        ),
+      ).values(),
+    );
 
-  const perQueryTarget = Math.ceil(
-    DISCOVERY_TARGET_POOL /
-      Math.max(1, uniqueQueries.length),
-  );
+  const perQueryTarget =
+    Math.ceil(
+      DISCOVERY_TARGET_POOL /
+        Math.max(
+          1,
+          uniqueQueries.length,
+        ),
+    );
 
   /*
-   * Each query paginates sequentially so page numbers
-   * are always correct. Different category queries can
-   * still run in parallel.
+   * Run provider queries in parallel.
+   *
+   * IMPORTANT:
+   * We now log failures instead of silently
+   * pretending the provider returned zero events.
    */
-  const batches = await Promise.all(
-    uniqueQueries.map((query) =>
-      fetchPaginatedQuery(
-        query,
-        perQueryTarget,
-      ).catch(() => []),
-    ),
-  );
+  const batches =
+    await Promise.all(
+      uniqueQueries.map(
+        (query) =>
+          fetchPaginatedQuery(
+            query,
+            perQueryTarget,
+          ).catch((error) => {
+            console.error(
+              "Passr discovery query failed:",
+              {
+                query,
+                error,
+              },
+            );
 
-  const filtered = batches
-    .flat()
-    .filter(isValidDiscoveryEvent)
-    .filter((event) => {
-      if (
-        category &&
-        normalizeRoot(event.category) !==
-          normalizeRoot(category)
-      ) {
-        return false;
-      }
+            return [];
+          }),
+      ),
+    );
 
-      if (
-        subcategory &&
-        !eventMatchesSubcategory(
-          event,
-          subcategory,
-        )
-      ) {
-        return false;
-      }
+  const filtered =
+    batches
+      .flat()
+      .filter(
+        isValidDiscoveryEvent,
+      )
+      .filter((event) => {
+        /*
+         * Explicit category filter.
+         */
+        if (
+          category &&
+          normalizeRoot(
+            event.category,
+          ) !==
+            normalizeRoot(
+              category,
+            )
+        ) {
+          return false;
+        }
 
-      if (
-        location &&
-        !eventMatchesLocation(
-          event,
-          location,
-        )
-      ) {
-        return false;
-      }
+        /*
+         * Explicit subcategory filter.
+         */
+        if (
+          subcategory &&
+          !eventMatchesSubcategory(
+            event,
+            subcategory,
+          )
+        ) {
+          return false;
+        }
 
-      /*
-       * Once the user has explicitly selected
-       * categories, personalized discovery should
-       * stay inside those categories.
-       */
-      if (
-        desiredCategories.size > 0 &&
-        !category &&
-        !term &&
-        !subcategory
-      ) {
-        return desiredCategories.has(
-          normalizeRoot(event.category),
-        );
-      }
+        /*
+         * Explicit location filter.
+         */
+        if (
+          location &&
+          !eventMatchesLocation(
+            event,
+            location,
+          )
+        ) {
+          return false;
+        }
 
-      return true;
-    });
+        /*
+         * Personalized discovery should stay
+         * inside preferred categories when the
+         * user has explicitly selected them.
+         */
+        if (
+          desiredCategories.size >
+            0 &&
+          !category &&
+          !term &&
+          !subcategory
+        ) {
+          return desiredCategories.has(
+            normalizeRoot(
+              event.category,
+            ),
+          );
+        }
 
-  const merged = deduplicateEvents(filtered);
+        return true;
+      });
+
+  const merged =
+    deduplicateEvents(
+      filtered,
+    );
 
   return merged
     .sort(
@@ -731,7 +925,10 @@ export async function fetchDiscoveryPool(
           location,
         ),
     )
-    .slice(0, DISCOVERY_TARGET_POOL);
+    .slice(
+      0,
+      DISCOVERY_TARGET_POOL,
+    );
 }
 
 export function buildHomeRails(
@@ -740,39 +937,59 @@ export function buildHomeRails(
 ): {
   trending: PassrEvent[];
   suggested: PassrEvent[];
+
   categories: Array<{
     id: string;
     title: string;
     events: PassrEvent[];
   }>;
 } {
-  const valid = events.filter(
-    isValidDiscoveryEvent,
-  );
+  const valid =
+    events.filter(
+      isValidDiscoveryEvent,
+    );
 
-  const ranked = [...valid].sort(
-    (a, b) =>
-      scoreEvent(b, profile) -
-      scoreEvent(a, profile),
-  );
+  const ranked =
+    [...valid].sort(
+      (a, b) =>
+        scoreEvent(
+          b,
+          profile,
+        ) -
+        scoreEvent(
+          a,
+          profile,
+        ),
+    );
 
   const desiredCategories =
-    getPreferredCategories(profile);
+    getPreferredCategories(
+      profile,
+    );
 
-  const categorySet = new Set<string>();
+  const categorySet =
+    new Set<string>();
 
-  if (desiredCategories.size > 0) {
-    for (const category of desiredCategories) {
-      categorySet.add(category);
+  if (
+    desiredCategories.size > 0
+  ) {
+    for (const category of
+      desiredCategories) {
+      categorySet.add(
+        category,
+      );
     }
   } else {
     for (const event of ranked) {
-      const categoryKey = normalizeRoot(
-        event.category,
-      );
+      const categoryKey =
+        normalizeRoot(
+          event.category,
+        );
 
       if (categoryKey) {
-        categorySet.add(categoryKey);
+        categorySet.add(
+          categoryKey,
+        );
       }
     }
   }
@@ -780,46 +997,65 @@ export function buildHomeRails(
   const takeUnique = (
     source: PassrEvent[],
     limit: number,
-  ) => source.slice(0, limit);
+  ) =>
+    source.slice(
+      0,
+      limit,
+    );
 
   const personalizedRanked =
     desiredCategories.size > 0
-      ? ranked.filter((event) =>
-          desiredCategories.has(
-            normalizeRoot(event.category),
-          ),
+      ? ranked.filter(
+          (event) =>
+            desiredCategories.has(
+              normalizeRoot(
+                event.category,
+              ),
+            ),
         )
       : ranked;
 
-  const trending = takeUnique(
-    personalizedRanked,
-    10,
-  );
-
-  const suggested = takeUnique(
-    personalizedRanked,
-    25,
-  );
-
-  const categories = Array.from(
-    categorySet,
-  )
-    .map((categoryKey) => ({
-      id: categoryKey,
-      title:
-        CATEGORY_TITLE_MAP[categoryKey] ??
-        categoryKey,
-      events: ranked
-        .filter(
-          (event) =>
-            normalizeRoot(event.category) ===
-            categoryKey,
-        )
-        .slice(0, 25),
-    }))
-    .filter(
-      (rail) => rail.events.length > 0,
+  const trending =
+    takeUnique(
+      personalizedRanked,
+      10,
     );
+
+  const suggested =
+    takeUnique(
+      personalizedRanked,
+      25,
+    );
+
+  const categories =
+    Array.from(
+      categorySet,
+    )
+      .map(
+        (categoryKey) => ({
+          id: categoryKey,
+
+          title:
+            CATEGORY_TITLE_MAP[
+              categoryKey
+            ] ??
+            categoryKey,
+
+          events: ranked
+            .filter(
+              (event) =>
+                normalizeRoot(
+                  event.category,
+                ) ===
+                categoryKey,
+            )
+            .slice(0, 25),
+        }),
+      )
+      .filter(
+        (rail) =>
+          rail.events.length > 0,
+      );
 
   return {
     trending,
@@ -828,4 +1064,6 @@ export function buildHomeRails(
   };
 }
 
-export { normalizeRoot };
+export {
+  normalizeRoot,
+};
