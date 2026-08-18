@@ -4,20 +4,27 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronLeft,
   Loader2,
-  MapPin,
   Search,
+  MapPin,
   X,
 } from "lucide-react";
 
 import { money } from "@/lib/mock-data";
-import { searchEvents } from "@/lib/discovery-enhanced";
+import {
+  searchEvents,
+} from "@/lib/discovery-enhanced";
 import type { PassrEvent } from "@/lib/types";
 import { getProfile } from "@/lib/profile";
-import { EXPANDED_TAXONOMY } from "@/lib/taxonomy-expanded";
+import {
+  getProfileLocation,
+} from "@/lib/discovery";
+import {
+  EXPANDED_TAXONOMY,
+} from "@/lib/taxonomy-expanded";
 
 import logo from "@/assets/passr-logo.png.asset.json";
 
@@ -40,12 +47,15 @@ type SubcategoryOption = {
 };
 
 function getCategories(): CategoryOption[] {
-  const taxonomy = EXPANDED_TAXONOMY as unknown;
+  const taxonomy =
+    EXPANDED_TAXONOMY as unknown;
 
   if (Array.isArray(taxonomy)) {
     return taxonomy
       .map(
-        (item: unknown): CategoryOption | null => {
+        (
+          item: unknown,
+        ): CategoryOption | null => {
           if (
             typeof item !== "object" ||
             item === null
@@ -53,7 +63,8 @@ function getCategories(): CategoryOption[] {
             return null;
           }
 
-          const data = item as TaxonomyCategory;
+          const data =
+            item as TaxonomyCategory;
 
           const key =
             typeof data.key === "string"
@@ -80,7 +91,9 @@ function getCategories(): CategoryOption[] {
         },
       )
       .filter(
-        (item): item is CategoryOption =>
+        (
+          item,
+        ): item is CategoryOption =>
           item !== null,
       );
   }
@@ -93,16 +106,22 @@ function getCategories(): CategoryOption[] {
   }
 
   return Object.entries(
-    taxonomy as Record<string, unknown>,
+    taxonomy as Record<
+      string,
+      unknown
+    >,
   ).map(([key, value]) => {
-    const data = value as TaxonomyCategory;
+    const data =
+      value as TaxonomyCategory;
 
     return {
       key,
       label:
-        typeof data?.label === "string"
+        typeof data?.label ===
+        "string"
           ? data.label
-          : typeof data?.name === "string"
+          : typeof data?.name ===
+              "string"
             ? data.name
             : key,
     };
@@ -112,27 +131,32 @@ function getCategories(): CategoryOption[] {
 function getCategoryData(
   categoryKey: string,
 ): TaxonomyCategory | undefined {
-  const taxonomy = EXPANDED_TAXONOMY as unknown;
+  const taxonomy =
+    EXPANDED_TAXONOMY as unknown;
 
   if (Array.isArray(taxonomy)) {
-    const match = taxonomy.find(
-      (item: unknown) => {
-        if (
-          typeof item !== "object" ||
-          item === null
-        ) {
-          return false;
-        }
+    const match =
+      taxonomy.find(
+        (item: unknown) => {
+          if (
+            typeof item !==
+              "object" ||
+            item === null
+          ) {
+            return false;
+          }
 
-        const data =
-          item as TaxonomyCategory;
+          const data =
+            item as TaxonomyCategory;
 
-        return (
-          data.key === categoryKey ||
-          data.id === categoryKey
-        );
-      },
-    );
+          return (
+            data.key ===
+              categoryKey ||
+            data.id ===
+              categoryKey
+          );
+        },
+      );
 
     return match as
       | TaxonomyCategory
@@ -140,14 +164,18 @@ function getCategoryData(
   }
 
   if (
-    typeof taxonomy !== "object" ||
+    typeof taxonomy !==
+      "object" ||
     taxonomy === null
   ) {
     return undefined;
   }
 
   return (
-    taxonomy as Record<string, unknown>
+    taxonomy as Record<
+      string,
+      unknown
+    >
   )[categoryKey] as
     | TaxonomyCategory
     | undefined;
@@ -157,7 +185,9 @@ function getAllSubcategories(
   categoryKey: string,
 ): SubcategoryOption[] {
   const categoryData =
-    getCategoryData(categoryKey);
+    getCategoryData(
+      categoryKey,
+    );
 
   if (!categoryData) {
     return [];
@@ -177,30 +207,36 @@ function getAllSubcategories(
         item: unknown,
       ): SubcategoryOption | null => {
         if (
-          typeof item !== "object" ||
+          typeof item !==
+              "object" ||
           item === null
         ) {
           return null;
         }
 
-        const data = item as {
-          key?: unknown;
-          id?: unknown;
-          label?: unknown;
-          name?: unknown;
-        };
+        const data =
+          item as {
+            key?: unknown;
+            id?: unknown;
+            label?: unknown;
+            name?: unknown;
+          };
 
         const key =
-          typeof data.key === "string"
+          typeof data.key ===
+          "string"
             ? data.key
-            : typeof data.id === "string"
+            : typeof data.id ===
+                "string"
               ? data.id
               : undefined;
 
         const label =
-          typeof data.label === "string"
+          typeof data.label ===
+          "string"
             ? data.label
-            : typeof data.name === "string"
+            : typeof data.name ===
+                "string"
               ? data.name
               : undefined;
 
@@ -229,182 +265,205 @@ interface SearchParams {
   location?: string;
 }
 
-export const Route = createFileRoute(
-  "/search",
-)({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): SearchParams => {
-    const q =
-      typeof search['q'] === "string"
-        ? search['q']
-        : undefined;
+export const Route =
+  createFileRoute("/search")({
+    validateSearch: (
+      search: Record<
+        string,
+        unknown
+      >,
+    ): SearchParams => {
+      const q =
+        typeof search.q ===
+        "string"
+          ? search.q
+          : undefined;
 
-    const category =
-      typeof search['category'] ===
-      "string"
-        ? search['category']
-        : undefined;
+      const category =
+        typeof search.category ===
+        "string"
+          ? search.category
+          : undefined;
 
-    const subcategory =
-      typeof search['subcategory'] ===
-      "string"
-        ? search['subcategory']
-        : undefined;
+      const subcategory =
+        typeof search.subcategory ===
+        "string"
+          ? search.subcategory
+          : undefined;
 
-    const location =
-      typeof search['location'] ===
-      "string"
-        ? search['location']
-        : undefined;
+      const location =
+        typeof search.location ===
+        "string"
+          ? search.location
+          : undefined;
 
-    return {
-      ...(q !== undefined
-        ? { q }
-        : {}),
-      ...(category !== undefined
-        ? { category }
-        : {}),
-      ...(subcategory !== undefined
-        ? { subcategory }
-        : {}),
-      ...(location !== undefined
-        ? { location }
-        : {}),
-    };
-  },
+      return {
+        ...(q !== undefined
+          ? { q }
+          : {}),
+        ...(category !==
+        undefined
+          ? { category }
+          : {}),
+        ...(subcategory !==
+        undefined
+          ? { subcategory }
+          : {}),
+        ...(location !==
+        undefined
+          ? { location }
+          : {}),
+      };
+    },
 
-  component: SearchResults,
-});
-
-function SearchResults() {
-  const search = useSearch({
-    from: Route.fullPath,
+    component:
+      SearchResults,
   });
 
-  const profile = getProfile();
+function SearchResults() {
+  const search =
+    useSearch({
+      from: Route.fullPath,
+    });
 
-  const [q, setQ] = useState(
-    search.q ?? "",
-  );
+  const profile =
+    getProfile();
+
+  const profileLocation =
+    getProfileLocation(
+      profile,
+    );
+
+  const [q, setQ] =
+    useState(
+      search.q ?? "",
+    );
 
   const [category, setCategory] =
-    useState<string | undefined>(
+    useState<
+      string | undefined
+    >(
       search.category,
     );
 
   const [subcategory, setSubcategory] =
-    useState<string | undefined>(
+    useState<
+      string | undefined
+    >(
       search.subcategory,
     );
 
   const [location, setLocation] =
     useState(
-      search.location ?? "",
+      search.location ??
+        profileLocation ??
+        "",
     );
 
-  const [showSuggestions, setShowSuggestions] =
-    useState(false);
+  const [
+    showSuggestions,
+    setShowSuggestions,
+  ] = useState(false);
 
-  const [debouncedQ, setDebouncedQ] =
-    useState(search.q ?? "");
+  const query =
+    useQuery({
+      queryKey: [
+        "search",
+        {
+          term: q,
+          category,
+          subcategory,
+          location,
+        },
+      ],
 
-  /*
-   * Debounce the search input so Passr does not
-   * send a Ticketmaster request for every
-   * individual keystroke.
-   */
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQ(q);
-    }, 350);
+      queryFn:
+        async () => {
+          return searchEvents({
+            term:
+              q.trim() ||
+              undefined,
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [q]);
+            category,
 
-  const query = useQuery({
-    queryKey: [
-      "search",
-      {
-        term: debouncedQ.trim(),
-        category,
-        subcategory,
-        location,
-      },
-    ],
+            subcategory,
 
-    queryFn: () => {
-      const term = debouncedQ.trim();
-      const loc = location.trim();
+            location:
+              location.trim() ||
+              undefined,
 
-      return searchEvents({
-        ...(term ? { term } : {}),
-        ...(category ? { category } : {}),
-        ...(subcategory ? { subcategory } : {}),
-        ...(loc ? { location: loc } : {}),
-        profile,
-        page: 0,
-        size: 20,
-      });
-    },
+            profile,
+          });
+        },
 
-    enabled: Boolean(
-      debouncedQ.trim() ||
-        category ||
-        subcategory ||
-        location.trim(),
-    ),
+      enabled:
+        Boolean(
+          q.trim() ||
+            category ||
+            subcategory ||
+            location.trim(),
+        ),
+    });
 
-    staleTime: 30_000,
-  });
+  const categories =
+    getCategories();
 
   const subcategories =
     category
-      ? getAllSubcategories(category)
+      ? getAllSubcategories(
+          category,
+        )
       : [];
 
-  const categories =
-    useMemo(
-      () => getCategories(),
-      [],
-    );
+  const events: PassrEvent[] =
+    query.data?.events ??
+    [];
 
-  /*
-   * Live suggestions use the same real event
-   * data already returned by the discovery system.
+  /**
+   * Live suggestions are derived from the
+   * same real provider results we're already
+   * retrieving.
+   *
+   * This gives the user immediate entity-like
+   * suggestions without inventing a second
+   * search system.
    */
   const suggestions =
     useMemo(() => {
-      if (q.trim().length < 2) {
+      const term =
+        q.trim().toLowerCase();
+
+      if (
+        term.length < 2 ||
+        !query.data
+      ) {
         return [];
       }
-
-      const events: PassrEvent[] =
-        query.data?.events ?? [];
-
-      const normalized =
-        q.trim().toLowerCase();
 
       const seen =
         new Set<string>();
 
-      return events
+      return query.data.events
         .filter((event) => {
-          const searchable = [
-            event.name,
-            event.subtitle,
-            event.venue,
-            event.genre,
-            event.subGenre,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
+          const name =
+            event.name
+              ?.toLowerCase() ??
+            "";
 
-          return searchable.includes(
-            normalized,
+          const venue =
+            event.venue
+              ?.toLowerCase() ??
+            "";
+
+          const genre =
+            event.genre
+              ?.toLowerCase() ??
+            "";
+
+          return (
+            name.includes(term) ||
+            venue.includes(term) ||
+            genre.includes(term)
           );
         })
         .filter((event) => {
@@ -413,7 +472,9 @@ function SearchResults() {
               .trim()
               .toLowerCase();
 
-          if (seen.has(key)) {
+          if (
+            seen.has(key)
+          ) {
             return false;
           }
 
@@ -427,28 +488,24 @@ function SearchResults() {
       query.data,
     ]);
 
-  const events: PassrEvent[] =
-    query.data?.events ?? [];
+  const clearFilters =
+    () => {
+      setCategory(
+        undefined,
+      );
 
-  const selectSuggestion = (
-    event: PassrEvent,
-  ) => {
-    setQ(event.name);
-    setShowSuggestions(false);
-  };
+      setSubcategory(
+        undefined,
+      );
 
-  const clearSearch = () => {
-    setQ("");
-    setDebouncedQ("");
-    setShowSuggestions(false);
-  };
+      setLocation("");
+    };
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl bg-background pb-24 text-foreground">
       <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6 lg:px-8">
 
         <header className="mb-8">
-
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:opacity-80"
@@ -470,117 +527,80 @@ function SearchResults() {
             </span>
           </div>
 
-          {/* SEARCH */}
-
+          {/* Search */}
           <div className="relative mt-4">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
 
-            <div className="relative">
+            <input
+              value={q}
+              onFocus={() =>
+                setShowSuggestions(
+                  true,
+                )
+              }
+              onChange={(event) => {
+                setQ(
+                  event.target
+                    .value,
+                );
 
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                setShowSuggestions(
+                  true,
+                );
+              }}
+              placeholder="Search events, artists, venues..."
+              className="w-full rounded-full border border-border bg-muted px-12 py-3 font-inter text-base text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
+            />
 
-              <input
-                value={q}
-                onFocus={() =>
-                  setShowSuggestions(true)
-                }
-                onChange={(event) => {
-                  setQ(
-                    event.target.value,
-                  );
-
+            {q && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQ("");
                   setShowSuggestions(
-                    true,
+                    false,
                   );
                 }}
-                onKeyDown={(event) => {
-                  if (
-                    event.key ===
-                    "Enter"
-                  ) {
-                    setShowSuggestions(
-                      false,
-                    );
-                  }
-
-                  if (
-                    event.key ===
-                    "Escape"
-                  ) {
-                    setShowSuggestions(
-                      false,
-                    );
-                  }
-                }}
-                placeholder="Search events, artists, venues..."
-                className="w-full rounded-full border border-border bg-muted py-3 pl-12 pr-12 font-inter text-base text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
-              />
-
-              {q && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-
-            {/* LIVE SEARCH SUGGESTIONS */}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
 
             {showSuggestions &&
-              q.trim().length >= 2 &&
               suggestions.length >
                 0 && (
-                <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-border bg-background shadow-xl">
-
-                  <div className="border-b border-border px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                    Suggestions
-                  </div>
-
+                <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
                   {suggestions.map(
                     (event) => (
                       <button
-                        type="button"
                         key={event.id}
-                        onMouseDown={(
-                          e,
-                        ) => {
-                          e.preventDefault();
+                        type="button"
+                        onClick={() => {
+                          setQ(
+                            event.name,
+                          );
 
-                          selectSuggestion(
-                            event,
+                          setShowSuggestions(
+                            false,
                           );
                         }}
                         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
                       >
-                        {event.image ? (
-                          <img
-                            src={
-                              event.image
-                            }
-                            alt=""
-                            className="h-10 w-10 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-lg bg-muted" />
-                        )}
+                        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
 
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">
                             {event.name}
-                          </p>
+                          </span>
 
-                          <p className="truncate text-xs text-muted-foreground">
+                          <span className="block truncate text-xs text-muted-foreground">
                             {event.venue ??
+                              event.genre ??
                               event.category}
-
-                            {event.city
-                              ? ` · ${event.city}`
-                              : ""}
-                          </p>
-                        </div>
+                          </span>
+                        </span>
                       </button>
                     ),
                   )}
@@ -588,128 +608,167 @@ function SearchResults() {
               )}
           </div>
 
-          {/* LOCATION */}
+          {/* Search filters */}
+          <div className="mt-4 space-y-4">
 
-          <div className="relative mt-3">
-
-            <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-            <input
-              value={location}
-              onChange={(event) =>
-                setLocation(
-                  event.target.value,
-                )
-              }
-              placeholder="Where? Try New York, Los Angeles, Chicago..."
-              className="w-full rounded-full border border-border bg-muted py-2.5 pl-11 pr-4 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
-            />
-
-          </div>
-        </header>
-
-        {/* CATEGORY FILTERS */}
-
-        <div className="mb-8 space-y-5">
-
-          <div>
-
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">
-              Browse by category
-            </h3>
-
-            <div className="flex flex-wrap gap-2">
-
-              {categories.map(
-                (item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => {
-                      setCategory(
-                        category ===
-                          item.key
-                          ? undefined
-                          : item.key,
-                      );
-
-                      setSubcategory(
-                        undefined,
-                      );
-                    }}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      category ===
-                      item.key
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background text-foreground hover:border-primary/50"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ),
-              )}
-
-            </div>
-          </div>
-
-          {/* SUBCATEGORIES */}
-
-          {subcategories.length >
-            0 && (
             <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Categories
+              </p>
 
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {categories.find(
-                  (item) =>
-                    item.key === category,
-                )?.label ?? "Explore"}
-              </h3>
-
-              <div className="flex flex-wrap gap-2">
-
-                {subcategories.map(
-                  (sub) => (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {categories.map(
+                  (item) => (
                     <button
-                      key={sub.key}
+                      key={
+                        item.key
+                      }
                       type="button"
                       onClick={() => {
-                        setSubcategory(
-                          subcategory ===
-                            sub.key
+                        setCategory(
+                          category ===
+                            item.key
                             ? undefined
-                            : sub.key,
+                            : item.key,
+                        );
+
+                        setSubcategory(
+                          undefined,
                         );
                       }}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                        subcategory ===
-                        sub.key
-                          ? "border-primary/60 bg-primary/10 text-primary"
-                          : "border-border bg-muted text-foreground hover:border-primary/30"
+                      className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        category ===
+                        item.key
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-foreground hover:border-primary/50"
                       }`}
                     >
-                      {sub.label}
+                      {
+                        item.label
+                      }
                     </button>
                   ),
                 )}
-
               </div>
             </div>
-          )}
 
-        </div>
+            {subcategories.length >
+              0 && (
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                  {
+                    getCategoryData(
+                      category!,
+                    )?.label ??
+                    getCategoryData(
+                      category!,
+                    )?.name ??
+                    "More filters"
+                  }
+                </p>
 
-        {/* RESULTS */}
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {subcategories.map(
+                    (
+                      sub,
+                    ) => (
+                      <button
+                        key={
+                          sub.key
+                        }
+                        type="button"
+                        onClick={() => {
+                          setSubcategory(
+                            subcategory ===
+                              sub.key
+                              ? undefined
+                              : sub.key,
+                          );
+                        }}
+                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          subcategory ===
+                          sub.key
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border bg-muted text-foreground hover:border-primary/30"
+                        }`}
+                      >
+                        {
+                          sub.label
+                        }
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
 
+            {/* Location */}
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Location
+              </p>
+
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+                <input
+                  value={
+                    location
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setLocation(
+                      event
+                        .target
+                        .value,
+                    )
+                  }
+                  placeholder="City, state, or ZIP"
+                  className="w-full rounded-xl border border-border bg-background px-10 py-2.5 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              {profileLocation &&
+                !location && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Using your profile
+                    location:
+                    {" "}
+                    {
+                      profileLocation
+                    }
+                  </p>
+                )}
+            </div>
+
+            {(category ||
+              subcategory ||
+              location) && (
+              <button
+                type="button"
+                onClick={
+                  clearFilters
+                }
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Results */}
         {query.isPending && (
           <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-muted/50 px-6 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Searching live events...
+            Searching...
           </div>
         )}
 
         {query.isError && (
           <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
-            Could not load live results. Try again in a moment.
+            Could not load results.
           </div>
         )}
 
@@ -720,37 +779,47 @@ function SearchResults() {
               {events.length >
               0 ? (
                 <div className="space-y-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Found{" "}
+                      {
+                        query
+                          .data
+                          .totalCount
+                      }{" "}
+                      {q
+                        ? `results for "${q}"`
+                        : "results"}
+                    </p>
 
-                  <p className="text-sm text-muted-foreground">
-                    Found{" "}
-                    {query.data.totalCount ??
-                      events.length}{" "}
-                    {q
-                      ? `results for "${q}"`
-                      : "events"}
-
-                    {location
-                      ? ` near ${location}`
-                      : ""}
-                  </p>
+                    {location && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        {location}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
                     {events.map(
-                      (event) => (
+                      (
+                        event,
+                      ) => (
                         <SearchEventCard
-                          key={event.id}
-                          event={event}
+                          key={
+                            event.id
+                          }
+                          event={
+                            event
+                          }
                         />
                       ),
                     )}
-
                   </div>
-
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-muted/40 px-6 py-8 text-center text-sm text-muted-foreground">
-                  No events found. Try a different search, category, or location.
+                  No events found. Try another search, category, or location.
                 </div>
               )}
             </>
@@ -764,10 +833,9 @@ function SearchResults() {
           !subcategory &&
           !location && (
             <div className="rounded-2xl border border-border bg-muted/50 px-6 py-8 text-center text-sm text-muted-foreground">
-              Search for an artist, event, venue, or browse the categories above.
+              Search for an artist, event, venue, or choose a category to explore.
             </div>
           )}
-
       </div>
     </div>
   );
@@ -786,7 +854,6 @@ function SearchEventCard({
       }}
       className="group block overflow-hidden rounded-2xl border border-border bg-card transition hover:border-primary/30 hover:shadow-lg"
     >
-
       {event.image ? (
         <img
           src={event.image}
@@ -799,9 +866,7 @@ function SearchEventCard({
       )}
 
       <div className="space-y-3 p-4">
-
         <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-
           <span>
             {event.category}
           </span>
@@ -809,7 +874,6 @@ function SearchEventCard({
           <span>
             {event.city}
           </span>
-
         </div>
 
         <h3 className="line-clamp-2 font-sans text-sm font-bold leading-tight">
@@ -822,7 +886,6 @@ function SearchEventCard({
         </div>
 
         <div className="flex items-center justify-between border-t border-border pt-2">
-
           <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             From
           </span>
@@ -835,9 +898,7 @@ function SearchEventCard({
                   event.startingAt,
                 )}
           </span>
-
         </div>
-
       </div>
     </Link>
   );
