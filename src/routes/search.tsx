@@ -254,28 +254,30 @@ export const Route = createFileRoute(
     search: Record<string, unknown>,
   ): SearchParams => {
     const q =
-      typeof search.q === "string"
-        ? search.q
+      typeof search["q"] === "string"
+        ? search["q"]
         : undefined;
 
     const category =
-      typeof search.category ===
+      typeof search["category"] ===
       "string"
-        ? search.category
+        ? search["category"]
         : undefined;
 
     const subcategory =
-      typeof search.subcategory ===
+      typeof search["subcategory"] ===
       "string"
-        ? search.subcategory
+        ? search["subcategory"]
         : undefined;
 
+    const rawPage = search["page"];
+
     const page =
-      typeof search.page === "number" &&
-      Number.isFinite(search.page)
+      typeof rawPage === "number" &&
+      Number.isFinite(rawPage)
         ? Math.max(
             0,
-            Math.floor(search.page),
+            Math.floor(rawPage),
           )
         : undefined;
 
@@ -437,9 +439,15 @@ function SearchResults() {
 
     queryFn: () =>
       searchEvents({
-        term: q.trim() || undefined,
-        category,
-        subcategory,
+        ...(q.trim()
+          ? { term: q.trim() }
+          : {}),
+        ...(category
+          ? { category }
+          : {}),
+        ...(subcategory
+          ? { subcategory }
+          : {}),
         page,
         size: 20,
         profile,
@@ -555,13 +563,15 @@ function SearchResults() {
             0 && (
             <div>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {getCategoryData(
-                  category!,
-                )?.label ??
+                {String(
                   getCategoryData(
                     category!,
-                  )?.name ??
-                  ""}
+                  )?.label ??
+                    getCategoryData(
+                      category!,
+                    )?.name ??
+                    "",
+                )}
               </h3>
 
               <div className="flex flex-wrap gap-2">
