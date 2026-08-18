@@ -659,13 +659,10 @@ function SearchResults() {
             <div>
 
               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                {getCategoryData(
-                  category!,
-                )?.label ??
-                  getCategoryData(
-                    category!,
-                  )?.name ??
-                  "Explore"}
+                {categories.find(
+                  (item) =>
+                    item.key === category,
+                )?.label ?? "Explore"}
               </h3>
 
               <div className="flex flex-wrap gap-2">
