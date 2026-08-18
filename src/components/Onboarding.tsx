@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/passr-logo.png.asset.json";
 import {
+  clearProfile,
   getProfile,
   saveProfile,
   syncProfileToSupabase,
