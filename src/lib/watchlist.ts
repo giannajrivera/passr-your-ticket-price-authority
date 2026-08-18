@@ -49,7 +49,19 @@ function hydrate() {
     const parsed: unknown = JSON.parse(raw);
 
     if (Array.isArray(parsed)) {
-      items = parsed as WatchItem[];
+      // Drop legacy/corrupt entries saved before `event` existed.
+      items = (parsed as WatchItem[]).filter(
+        (item): item is WatchItem =>
+          !!item &&
+          typeof item === "object" &&
+          typeof item.eventId === "string" &&
+          !!item.event &&
+          typeof item.event === "object",
+      );
+
+      if (items.length !== parsed.length) {
+        persist();
+      }
     } else {
       items = [];
     }
