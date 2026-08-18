@@ -1,5 +1,6 @@
 import type { PassrProfile } from "@/lib/profile";
 import type { PassrEvent } from "@/lib/types";
+
 import {
   buildHomeRails,
   fetchDiscoveryPool,
@@ -7,17 +8,35 @@ import {
 
 export type EnhancedDiscoveryOptions = {
   profile?: PassrProfile | null;
+
+  /*
+   * `term` is the canonical search field.
+   *
+   * Example:
+   * term: "Olivia Dean"
+   */
   term?: string;
+
   category?: string;
   subcategory?: string;
   location?: string;
   radiusMiles?: number;
+
+  /*
+   * Search pagination.
+   *
+   * Discovery fetches a larger live-event pool first,
+   * then searchEvents slices that pool for the UI.
+   */
+  page?: number;
+  size?: number;
 };
 
 export type DiscoveryResult = {
   events: PassrEvent[];
   suggested: PassrEvent[];
   trending: PassrEvent[];
+
   categories: Array<{
     id: string;
     title: string;
@@ -95,8 +114,7 @@ export async function getSuggestedEvents(
  * Returns the current trending rail.
  *
  * Trending is still constrained by explicit user
- * preferences when preferences exist. It is not
- * allowed to override an explicit category exclusion.
+ * preferences when preferences exist.
  */
 export async function getTrendingEvents(
   profile: PassrProfile | null,
@@ -111,10 +129,6 @@ export async function getTrendingEvents(
 
 /**
  * Returns category-specific rails.
- *
- * Each category gets its own independently ranked
- * real-event list instead of borrowing the same small
- * homepage array.
  */
 export async function getCategoryRails(
   profile: PassrProfile | null,
@@ -137,14 +151,40 @@ export async function getCategoryRails(
  * Search uses the same real-data discovery pipeline as
  * homepage recommendations.
  *
- * This prevents search from having a separate source
- * of mock/placeholder events.
+ * The discovery layer fetches a larger candidate pool,
+ * then this function applies the UI's requested page
+ * and page size.
  */
 export async function searchEvents(
   options: EnhancedDiscoveryOptions,
-): Promise<PassrEvent[]> {
+): Promise<{
+  events: PassrEvent[];
+  totalCount: number;
+  hasMore: boolean;
+}> {
   const result =
     await getEnhancedDiscovery(options);
 
-  return result.events;
+  const page = Math.max(
+    0,
+    options.page ?? 0,
+  );
+
+  const size = Math.max(
+    1,
+    options.size ?? 20,
+  );
+
+  const start = page * size;
+
+  const events = result.events.slice(
+    start,
+    start + size,
+  );
+
+  return {
+    events,
+    totalCount: result.events.length,
+    hasMore: start + size < result.events.length,
+  };
 }
