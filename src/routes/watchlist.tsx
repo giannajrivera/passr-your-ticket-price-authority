@@ -13,7 +13,6 @@ import {
 import { BottomNav } from "@/components/BottomNav";
 import { money } from "@/lib/mock-data";
 import {
-  isSaved,
   toggleNotify,
   toggleSaved,
   useWatchlist,
