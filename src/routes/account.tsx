@@ -19,6 +19,7 @@ import {
   type PassrProfile,
 } from "@/lib/profile";
 import {
+  emptyPreferences,
   labelForBudget,
   labelForHorizon,
   labelForTravel,
@@ -461,6 +462,7 @@ function NotificationSettings({
     }
 
     const nextPreferences: EventPreferences = {
+      ...emptyPreferences(),
       ...preferences,
       notifications: {
         ...notifications,
