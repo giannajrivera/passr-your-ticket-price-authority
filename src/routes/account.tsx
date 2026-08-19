@@ -19,6 +19,7 @@ import {
   type PassrProfile,
 } from "@/lib/profile";
 import {
+  emptyPreferences,
   labelForBudget,
   labelForHorizon,
   labelForTravel,
