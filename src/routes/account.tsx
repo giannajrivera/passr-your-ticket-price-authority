@@ -5,7 +5,6 @@ import {
   Bell,
   LogOut,
   Mail,
-  MapPin,
   Pencil,
   Phone,
   User,
@@ -15,7 +14,6 @@ import { BottomNav } from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth";
 import {
   getProfile,
-  loadProfileFromSupabase,
   saveProfile,
   syncProfileToSupabase,
   type PassrProfile,
@@ -28,18 +26,26 @@ import {
   type EventPreferences,
 } from "@/lib/preferences";
 import { labelFor } from "@/lib/taxonomy";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/account")({
   component: Account,
 });
 
 function Account() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    signOut,
+  } = useAuth();
 
-  const [profile, setProfile] = useState<PassrProfile | null>(null);
+  const [profile, setProfile] =
+    useState<PassrProfile | null>(null);
+
   const [loading, setLoading] = useState(true);
+  const [editingProfile, setEditingProfile] =
+    useState(false);
 
-  const [editingProfile, setEditingProfile] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
@@ -49,28 +55,13 @@ function Account() {
     async function load() {
       if (authLoading) return;
 
-      if (!user) {
-        const localProfile = getProfile();
-
-        if (mounted) {
-          setProfile(localProfile);
-          setName(localProfile?.name ?? "");
-          setPhone(localProfile?.phone ?? "");
-          setLoading(false);
-        }
-
-        return;
-      }
-
-      const remoteProfile = await loadProfileFromSupabase(user.id);
+      const localProfile = getProfile();
 
       if (!mounted) return;
 
-      const nextProfile = remoteProfile ?? getProfile();
-
-      setProfile(nextProfile);
-      setName(nextProfile?.name ?? "");
-      setPhone(nextProfile?.phone ?? "");
+      setProfile(localProfile);
+      setName(localProfile?.name ?? "");
+      setPhone(localProfile?.phone ?? "");
       setLoading(false);
     }
 
@@ -81,7 +72,7 @@ function Account() {
     };
   }, [user, authLoading]);
 
-  const handleSaveProfile = async () => {
+  async function handleSaveProfile() {
     if (!profile) return;
 
     const updatedProfile: PassrProfile = {
@@ -97,11 +88,11 @@ function Account() {
     if (user) {
       await syncProfileToSupabase(user.id);
     }
-  };
+  }
 
-  const handleSignOut = async () => {
+  async function handleSignOut() {
     await signOut();
-  };
+  }
 
   if (authLoading || loading) {
     return (
@@ -111,6 +102,7 @@ function Account() {
             Loading your account...
           </p>
         </div>
+
         <BottomNav />
       </main>
     );
@@ -135,7 +127,7 @@ function Account() {
           </h1>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Manage your Passr profile, preferences, and account.
+            Manage your Passr profile, preferences, and notifications.
           </p>
         </header>
 
@@ -170,7 +162,10 @@ function Account() {
         <section className="rounded-3xl border border-border bg-card p-5">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="font-sans text-2xl font-bold">Profile</h2>
+              <h2 className="font-sans text-2xl font-bold">
+                Profile
+              </h2>
+
               <p className="mt-1 text-sm text-muted-foreground">
                 Your Passr account information.
               </p>
@@ -179,10 +174,13 @@ function Account() {
             {profile && (
               <button
                 type="button"
-                onClick={() => setEditingProfile((value) => !value)}
+                onClick={() =>
+                  setEditingProfile((value) => !value)
+                }
                 className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold transition hover:bg-muted"
               >
                 <Pencil className="h-3.5 w-3.5" />
+
                 {editingProfile ? "Cancel" : "Edit"}
               </button>
             )}
@@ -201,7 +199,9 @@ function Account() {
                   {editingProfile ? (
                     <input
                       value={name}
-                      onChange={(event) => setName(event.target.value)}
+                      onChange={(event) =>
+                        setName(event.target.value)
+                      }
                       className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                   ) : (
@@ -221,7 +221,9 @@ function Account() {
                   </p>
 
                   <p className="mt-1 text-sm font-medium">
-                    {profile.email || user?.email || "Not added"}
+                    {profile.email ||
+                      user?.email ||
+                      "Not added"}
                   </p>
                 </div>
               </div>
@@ -237,7 +239,9 @@ function Account() {
                   {editingProfile ? (
                     <input
                       value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
+                      onChange={(event) =>
+                        setPhone(event.target.value)
+                      }
                       type="tel"
                       placeholder="Add phone number"
                       className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
@@ -253,7 +257,9 @@ function Account() {
               {editingProfile && (
                 <button
                   type="button"
-                  onClick={() => void handleSaveProfile()}
+                  onClick={() =>
+                    void handleSaveProfile()
+                  }
                   className="w-full rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
                 >
                   Save changes
@@ -268,28 +274,16 @@ function Account() {
         </section>
 
         {preferences && (
-          <PreferencesSection preferences={preferences} />
+          <PreferencesSection
+            preferences={preferences}
+          />
         )}
 
-        {user && (
-          <section className="mt-6 rounded-3xl border border-border bg-card p-5">
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl bg-muted p-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-              </div>
-
-              <div>
-                <h2 className="font-sans text-xl font-bold">
-                  Notifications
-                </h2>
-
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Notification controls are coming next. This is where you'll
-                  control price drops, event updates, and Passr updates.
-                </p>
-              </div>
-            </div>
-          </section>
+        {user && profile && (
+          <NotificationSettings
+            profile={profile}
+            onProfileChange={setProfile}
+          />
         )}
 
         {user && (
@@ -329,7 +323,8 @@ function PreferencesSection({
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          These are the choices Passr uses to personalize your events.
+          These are the choices Passr uses to personalize
+          your events.
         </p>
       </div>
 
@@ -337,28 +332,38 @@ function PreferencesSection({
         {preferences.categories.length > 0 && (
           <PreferenceRow
             label="Categories"
-            value={preferences.categories.map(labelFor).join(", ")}
+            value={preferences.categories
+              .map(labelFor)
+              .join(", ")}
           />
         )}
 
         {interests.length > 0 && (
           <PreferenceRow
             label="Interests"
-            value={interests.map((item) => item.label).join(", ")}
+            value={interests
+              .map((item) => item.label)
+              .join(", ")}
           />
         )}
 
         {preferences.budget && (
           <PreferenceRow
             label="Budget"
-            value={labelForBudget(preferences.budget) ?? preferences.budget}
+            value={
+              labelForBudget(preferences.budget) ??
+              preferences.budget
+            }
           />
         )}
 
         {preferences.travel && (
           <PreferenceRow
             label="Travel"
-            value={labelForTravel(preferences.travel) ?? preferences.travel}
+            value={
+              labelForTravel(preferences.travel) ??
+              preferences.travel
+            }
           />
         )}
 
@@ -366,7 +371,8 @@ function PreferencesSection({
           <PreferenceRow
             label="Planning"
             value={
-              labelForHorizon(preferences.horizon) ?? preferences.horizon
+              labelForHorizon(preferences.horizon) ??
+              preferences.horizon
             }
           />
         )}
@@ -374,13 +380,15 @@ function PreferencesSection({
         {preferences.vibes.length > 0 && (
           <PreferenceRow
             label="Vibe"
-            value={preferences.vibes.map(labelForVibe).join(", ")}
+            value={preferences.vibes
+              .map(labelForVibe)
+              .join(", ")}
           />
         )}
 
-        {preferences.categories.length === 0 &&
-          preferences.interests.length === 0 &&
-          preferences.vibes.length === 0 &&
+        {!preferences.categories.length &&
+          !preferences.interests.length &&
+          !preferences.vibes.length &&
           !preferences.budget &&
           !preferences.travel &&
           !preferences.horizon && (
@@ -405,9 +413,226 @@ function PreferenceRow({
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
+
       <p className="mt-1 text-sm leading-relaxed text-foreground">
         {value}
       </p>
+    </div>
+  );
+}
+
+function NotificationSettings({
+  profile,
+  onProfileChange,
+}: {
+  profile: PassrProfile;
+  onProfileChange: (
+    profile: PassrProfile,
+  ) => void;
+}) {
+  const preferences = profile.preferences;
+
+  if (!preferences) return null;
+
+  const notifications =
+    preferences.notifications ?? {
+      emailUpdates: true,
+      smsUpdates: false,
+      priceDropAlerts: true,
+      eventUpdates: true,
+      newEventAlerts: true,
+      recommendationUpdates: true,
+    };
+
+  async function updateNotification(
+    key:
+      | "emailUpdates"
+      | "smsUpdates"
+      | "priceDropAlerts"
+      | "eventUpdates"
+      | "newEventAlerts"
+      | "recommendationUpdates",
+  ) {
+    if (
+      key === "smsUpdates" &&
+      !profile.phone
+    ) {
+      return;
+    }
+
+    const nextPreferences: EventPreferences = {
+      ...preferences,
+      notifications: {
+        ...notifications,
+        [key]: !notifications[key],
+      },
+    };
+
+    const nextProfile: PassrProfile = {
+      ...profile,
+      preferences: nextPreferences,
+    };
+
+    onProfileChange(nextProfile);
+    saveProfile(nextProfile);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      await syncProfileToSupabase(user.id);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-3xl border border-border bg-card p-5">
+      <div className="mb-5">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-primary/10 p-3">
+            <Bell className="h-5 w-5 text-primary" />
+          </div>
+
+          <div>
+            <h2 className="font-sans text-2xl font-bold">
+              Notifications
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose what Passr sends you.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="divide-y divide-border">
+        <NotificationToggle
+          label="Email updates"
+          description="Important Passr updates and account information."
+          checked={notifications.emailUpdates}
+          onChange={() =>
+            void updateNotification(
+              "emailUpdates",
+            )
+          }
+        />
+
+        <NotificationToggle
+          label="Price-drop alerts"
+          description="Let me know when a saved event gets cheaper."
+          checked={notifications.priceDropAlerts}
+          onChange={() =>
+            void updateNotification(
+              "priceDropAlerts",
+            )
+          }
+        />
+
+        <NotificationToggle
+          label="Event updates"
+          description="Changes to events you're watching or following."
+          checked={notifications.eventUpdates}
+          onChange={() =>
+            void updateNotification(
+              "eventUpdates",
+            )
+          }
+        />
+
+        <NotificationToggle
+          label="New event alerts"
+          description="Tell me when new events match my interests."
+          checked={notifications.newEventAlerts}
+          onChange={() =>
+            void updateNotification(
+              "newEventAlerts",
+            )
+          }
+        />
+
+        <NotificationToggle
+          label="Recommendations"
+          description="Personalized event recommendations from Passr."
+          checked={
+            notifications.recommendationUpdates
+          }
+          onChange={() =>
+            void updateNotification(
+              "recommendationUpdates",
+            )
+          }
+        />
+
+        <NotificationToggle
+          label="Text messages"
+          description={
+            profile.phone
+              ? `Send updates to ${profile.phone}.`
+              : "Add a phone number above to enable text notifications."
+          }
+          checked={notifications.smsUpdates}
+          disabled={!profile.phone}
+          onChange={() =>
+            void updateNotification(
+              "smsUpdates",
+            )
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function NotificationToggle({
+  label,
+  description,
+  checked,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 py-4 ${
+        disabled ? "opacity-50" : ""
+      }`}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">
+          {label}
+        </p>
+
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        disabled={disabled}
+        onClick={onChange}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+          checked ? "bg-primary" : "bg-muted"
+        } ${
+          disabled
+            ? "cursor-not-allowed"
+            : "cursor-pointer"
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-background shadow-sm transition ${
+            checked ? "left-6" : "left-1"
+          }`}
+        />
+      </button>
     </div>
   );
 }
