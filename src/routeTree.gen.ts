@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as EventEventIdRouteImport } from './routes/event.$eventId'
@@ -18,6 +19,11 @@ import { Route as ApiEventsTicketmasterRouteImport } from './routes/api.events.t
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -43,6 +49,7 @@ const ApiEventsTicketmasterRoute = ApiEventsTicketmasterRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/search': typeof SearchRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/search': typeof SearchRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/search': typeof SearchRoute
   '/watchlist': typeof WatchlistRoute
   '/event/$eventId': typeof EventEventIdRoute
@@ -67,6 +76,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
     | '/search'
     | '/watchlist'
     | '/event/$eventId'
@@ -74,6 +84,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/account'
     | '/search'
     | '/watchlist'
     | '/event/$eventId'
@@ -81,6 +92,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/account'
     | '/search'
     | '/watchlist'
     | '/event/$eventId'
@@ -89,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
   SearchRoute: typeof SearchRoute
   WatchlistRoute: typeof WatchlistRoute
   EventEventIdRoute: typeof EventEventIdRoute
@@ -102,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -137,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
   SearchRoute: SearchRoute,
   WatchlistRoute: WatchlistRoute,
   EventEventIdRoute: EventEventIdRoute,

@@ -862,4 +862,3 @@ function SearchEventCard({
     </Link>
   );
 }
-```
