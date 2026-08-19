@@ -20,6 +20,7 @@ import type { PassrEvent } from "@/lib/types";
 import { getProfile } from "@/lib/profile";
 import { getProfileLocation } from "@/lib/discovery";
 import { EXPANDED_TAXONOMY } from "@/lib/taxonomy-expanded";
+import { BottomNav } from "@/components/BottomNav";
 
 import logo from "@/assets/passr-logo.png.asset.json";
 
@@ -444,7 +445,7 @@ function SearchResults() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-7xl bg-background pb-24 text-foreground">
+    <div className="mx-auto min-h-screen max-w-7xl bg-background pb-28 text-foreground">
       <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6 lg:px-8">
         <header className="mb-8">
           <Link
@@ -801,6 +802,8 @@ function SearchResults() {
             </div>
           )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }
