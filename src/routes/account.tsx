@@ -461,6 +461,7 @@ function NotificationSettings({
     }
 
     const nextPreferences: EventPreferences = {
+      ...emptyPreferences(),
       ...preferences,
       notifications: {
         ...notifications,
