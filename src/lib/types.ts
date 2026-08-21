@@ -1,36 +1,15 @@
 /**
  * Shared, provider-agnostic event and ticket types for Passr.
  *
- * Passr separates:
- *
- * 1. The provider that discovered the event
- * 2. The actual places where tickets for that specific event can be bought
- *
- * These are NOT necessarily the same thing.
- *
- * Example:
- * Ticketmaster may return an event whose actual ticket URL points to
- * TicketWeb. In that case:
- *
- *   event.source = "ticketmaster"
- *   event.ticketSources = [{ provider: "TicketWeb", ... }]
- *
- * Passr should never assume that the event's discovery provider is the
- * place where tickets are actually sold.
+ * PassrEvent contains the core identity of an event.
+ * Ticket-market data is intentionally kept separate.
  */
 
-/** Where Passr originally obtained the event record. */
 export type EventSource =
   | "mock"
   | "ticketmaster"
-  | "eventbrite"
-  | "partiful"
-  | "posh"
-  | "dice"
-  | "axs"
-  | "other";
+  | "eventbrite";
 
-/** Broad event category, used for filtering, icons, and venue-map layout. */
 export type EventCategory =
   | "Concert"
   | "Sports"
@@ -41,10 +20,6 @@ export type EventCategory =
   | "Nightlife"
   | "Other";
 
-/**
- * Whether a Passr event is a normal purchasable event or a special listing
- * returned by a provider.
- */
 export type ListingType =
   | "standard"
   | "suite"
@@ -53,96 +28,36 @@ export type ListingType =
   | "package"
   | "other";
 
-/**
- * Type of actual ticket destination.
- *
- * `primary` = official/primary ticket seller
- * `resale` = verified resale marketplace
- * `discovery` = provider where the event can be discovered but is not
- * necessarily the primary seller
- */
-export type TicketSourceType =
-  | "primary"
-  | "resale"
-  | "discovery";
-
-/**
- * A direct ticket destination for THIS specific event.
- *
- * This must be an actual event/listing URL.
- *
- * Do NOT populate this with generic marketplace search URLs.
- */
-export type TicketSource = {
-  /** Human-readable provider name, e.g. "TicketWeb", "Partiful", "Posh". */
-  provider: string;
-
-  /** Provider-specific identifier when known. */
-  providerEventId?: string | undefined;
-
-  /**
-   * Direct URL to this specific event/listing.
-   *
-   * Example:
-   * https://www.ticketweb.com/event/some-event-123
-   *
-   * This should NEVER be a generic marketplace search URL.
-   */
-  url: string;
-
-  /** Whether this is the primary/official ticket source, resale source, etc. */
-  type: TicketSourceType;
-
-  /**
-   * Whether Passr has confirmed that this URL corresponds to this event.
-   *
-   * Only verified sources should normally be displayed in "Find tickets".
-   */
-  verified: boolean;
-
-  /** Optional timestamp for when Passr last verified the destination. */
-  lastVerifiedAt?: string | undefined;
-};
-
-/**
- * A provider-agnostic event.
- *
- * `source` tells us where Passr discovered the event.
- *
- * `ticketSources` tells us where the user can actually get tickets.
- *
- * Those two fields intentionally remain separate.
- */
 export type PassrEvent = {
   /** Passr's internal identifier for this event. */
   id: string;
 
-  /** Provider from which Passr originally obtained this event record. */
+  /** Provider that supplied the event. */
   source: EventSource;
 
-  /** Event ID in the original provider's system. */
+  /** Event ID in the provider's system. */
   sourceEventId: string;
 
   name: string;
 
-  /** Short line under the event name, e.g. supporting act or tour name. */
+  /** Short line under the event name. */
   subtitle?: string | undefined;
 
-  /** Longer free-text description, when available. */
+  /** Longer provider-supplied description. */
   description?: string | undefined;
 
   category: EventCategory;
 
-  /** Provider-supplied genre, e.g. "Rock" or "Basketball". */
+  /** Provider-supplied genre. */
   genre?: string | undefined;
 
-  /** Provider-supplied sub-genre, e.g. "Alternative Rock". */
+  /** Provider-supplied sub-genre. */
   subGenre?: string | undefined;
 
-  /** Human-readable date/time for display. */
+  /** Human-readable display date/time. */
   date: string;
 
-  /** Machine-readable ISO 8601 start date/time. */
+  /** ISO 8601 start date/time. */
   startDateTime?: string | undefined;
 
   venue: string;
@@ -163,45 +78,53 @@ export type PassrEvent = {
   /**
    * Lowest known starting price.
    *
-   * Undefined when the source provider does not expose pricing.
-   * Never fabricate a number here.
+   * Never fabricate this value when the provider
+   * does not supply pricing.
    */
   startingAt?: number | undefined;
 
-  /** Whether this event should surface in trending sections. */
+  /** Whether this event should surface as trending. */
   trending: boolean;
 
   /**
-   * Legacy/source-level ticket URL.
+   * Actual event-specific purchase URL supplied
+   * by the provider.
    *
-   * This may come directly from the event provider.
-   *
-   * New UI should prefer `ticketSources`.
+   * This must NOT be a generic marketplace search URL.
    */
   ticketUrl?: string | undefined;
 
   /**
-   * Actual ticket destinations for this specific event.
+   * Marketplace that owns ticketUrl.
    *
-   * The Event page should render these instead of generating generic
-   * marketplace search URLs.
+   * Examples:
+   * Ticketmaster
+   * TicketWeb
+   * Universe
+   * Eventbrite
+   * Partiful
+   *
+   * This is derived from the actual ticket URL.
    */
-  ticketSources?: TicketSource[] | undefined;
+  ticketMarketplace?: string | undefined;
 
   /**
-   * Best-effort classification of standard vs. non-standard listing.
+   * Best-effort classification of standard vs.
+   * non-standard listings.
    */
   listingType?: ListingType | undefined;
 };
 
 /**
- * Ticket / resale-market data for a specific listing, section, or seat.
+ * Ticket / resale-market data for a specific
+ * listing, section, or seat.
  *
- * This is separate from PassrEvent because event identity and ticket-market
- * analysis are different data domains.
+ * This is separate from PassrEvent because
+ * provider event APIs generally do not provide
+ * historical market averages or resale quotes.
  */
 export type TicketMarketData = {
-  /** Marketplace this quote came from, e.g. "StubHub" or "Ticketmaster". */
+  /** Marketplace supplying this quote. */
   marketplace: string;
 
   section?: string | undefined;
@@ -217,9 +140,9 @@ export type TicketMarketData = {
   /** Recent market average when known. */
   marketAverage?: number | undefined;
 
-  /** Deep link to purchase this specific listing. */
+  /** Event/listing-specific purchase URL. */
   purchaseUrl?: string | undefined;
 
-  /** ISO 8601 timestamp of when this quote was last refreshed. */
+  /** ISO 8601 timestamp. */
   lastUpdated?: string | undefined;
 };
