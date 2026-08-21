@@ -122,8 +122,8 @@ function WatchlistCard({ item }: { item: WatchItem }) {
         state: event.state ?? "",
         category: event.category,
         subtitle: event.subtitle ?? "",
-        image: event.image,
-        ticketUrl: event.ticketUrl,
+        image: event.image ?? "",
+        ticketUrl: event.ticketUrl ?? "",
       },
       item.currentPrice,
     );
