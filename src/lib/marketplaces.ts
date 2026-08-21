@@ -241,3 +241,37 @@ export function deduplicateMarketplaceLinks(
     return true;
   });
 }
+export type EventMarketplace = {
+  id: string;
+  name: string;
+  url: string;
+  startingPrice?: number | undefined;
+};
+
+/**
+ * Builds the list of verified, event-specific ticket sources.
+ * Only real provider URLs are used — never generated search links.
+ */
+export function marketplacesForEvent(event: {
+  ticketUrl?: string | undefined;
+  startingAt?: number | undefined;
+}): EventMarketplace[] {
+  const link = marketplaceLinkFromUrl(
+    event.ticketUrl,
+  );
+
+  if (!link) {
+    return [];
+  }
+
+  return [
+    {
+      id: link.name
+        .toLowerCase()
+        .replace(/\s+/g, "-"),
+      name: link.name,
+      url: link.url,
+      startingPrice: event.startingAt,
+    },
+  ];
+}
