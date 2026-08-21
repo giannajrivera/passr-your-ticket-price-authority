@@ -1,8 +1,4 @@
-import {
-  createFileRoute,
-  Link,
-  notFound,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
@@ -19,45 +15,40 @@ import {
   Ticket,
 } from "lucide-react";
 
-import {
-  getEvent,
-  money,
-  quotesFor,
-} from "@/lib/mock-data";
-
+import { getEvent, money } from "@/lib/mock-data";
 import {
   eventsQuery,
   isTicketmasterId,
   toTicketmasterEventId,
 } from "@/lib/events-client";
-
 import type {
   PassrEvent,
+  TicketMarketData,
 } from "@/lib/types";
-
-import {
-  getVenueLayout,
-} from "@/lib/venue-maps";
-
-import {
-  venueInventory,
-} from "@/lib/venue-listings";
-
+import { getVenueLayout } from "@/lib/venue-maps";
+import { venueInventory } from "@/lib/venue-listings";
 import { BottomNav } from "@/components/BottomNav";
 import { VenueMap } from "@/components/VenueMap";
 import { AffiliateNote } from "@/components/AffiliateNote";
-
 import {
   isSaved,
   toggleSaved,
   useWatchlist,
 } from "@/lib/watchlist";
 
+/**
+ * Temporary anchor for Passr's simulated seat-map layer.
+ *
+ * Real Ticketmaster events sometimes don't include a price.
+ * We keep this only for the seat-map layer until Passr has
+ * real inventory providers connected.
+ */
 const FALLBACK_ANCHOR_PRICE = 75;
 
-function marketplaceSearchQuery(
-  event: PassrEvent,
-) {
+/**
+ * Creates a safe search query for external ticket marketplaces.
+ */
+function marketplaceSearchQuery(event: PassrEvent) {
   return [
     event.name,
     event.venue,
@@ -69,21 +60,21 @@ function marketplaceSearchQuery(
     .trim();
 }
 
-function getMarketplaceLinks(
-  event: PassrEvent,
-) {
-  const query =
-    marketplaceSearchQuery(event);
-
-  const encoded =
-    encodeURIComponent(query);
+/**
+ * External marketplace search links.
+ *
+ * These are navigation links only. They are NOT used as
+ * pricing/inventory data.
+ */
+function getMarketplaceLinks(event: PassrEvent) {
+  const query = marketplaceSearchQuery(event);
+  const encoded = encodeURIComponent(query);
 
   return [
     {
       name: "Ticketmaster",
       url: event.ticketUrl,
-      available:
-        Boolean(event.ticketUrl),
+      available: Boolean(event.ticketUrl),
     },
     {
       name: "SeatGeek",
@@ -122,8 +113,7 @@ function getMarketplaceLinks(
     },
   ].filter(
     (marketplace) =>
-      marketplace.available &&
-      marketplace.url,
+      marketplace.available && marketplace.url,
   ) as Array<{
     name: string;
     url: string;
@@ -131,130 +121,198 @@ function getMarketplaceLinks(
   }>;
 }
 
-export const Route =
-  createFileRoute(
-    "/event/$eventId",
-  )({
-    loader: ({
-      params,
-    }) => {
-      const event =
-        getEvent(params.eventId);
+/**
+ * Loads marketplace quotes from Passr's marketplace layer.
+ *
+ * The API is intentionally provider-agnostic.
+ *
+ * Expected response:
+ *
+ * {
+ *   ok: true,
+ *   quotes: TicketMarketData[]
+ * }
+ */
+function marketplaceQuotesQuery(event: PassrEvent) {
+  return {
+    queryKey: [
+      "marketplace-quotes",
+      event.id,
+    ],
+
+    queryFn: async (): Promise<
+      TicketMarketData[]
+    > => {
+      const search = new URLSearchParams();
+
+      search.set("eventId", event.id);
+
+      if (event.source) {
+        search.set(
+          "source",
+          event.source,
+        );
+      }
+
+      if (event.sourceEventId) {
+        search.set(
+          "sourceEventId",
+          event.sourceEventId,
+        );
+      }
+
+      const response = await fetch(
+        `/api/marketplaces/quotes?${search.toString()}`,
+      );
+
+      if (!response.ok) {
+        let message =
+          "Unable to load marketplace prices.";
+
+        try {
+          const payload =
+            (await response.json()) as {
+              error?: {
+                message?: string;
+              };
+            };
+
+          message =
+            payload.error?.message ??
+            message;
+        } catch {
+          // Ignore malformed error payloads.
+        }
+
+        throw new Error(message);
+      }
+
+      const payload =
+        (await response.json()) as {
+          ok?: boolean;
+          quotes?: TicketMarketData[];
+        };
 
       if (
-        !event &&
-        !isTicketmasterId(
-          params.eventId,
-        )
+        !payload.ok ||
+        !Array.isArray(payload.quotes)
       ) {
-        throw notFound();
+        throw new Error(
+          "Marketplace quote response was malformed.",
+        );
       }
 
-      return {
-        event:
-          event ?? null,
-      };
+      return payload.quotes;
     },
 
-    head: ({
-      loaderData,
-    }) => {
-      if (!loaderData) {
-        return {
-          meta: [
-            {
-              title:
-                "Event unavailable — Passr",
-            },
-            {
-              name: "robots",
-              content:
-                "noindex",
-            },
-          ],
-        };
-      }
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  };
+}
 
-      const { event } =
-        loaderData;
+export const Route = createFileRoute(
+  "/event/$eventId",
+)({
+  loader: ({ params }) => {
+    const event = getEvent(
+      params.eventId,
+    );
 
-      if (!event) {
-        const title =
-          "Event prices — Passr";
+    if (
+      !event &&
+      !isTicketmasterId(
+        params.eventId,
+      )
+    ) {
+      throw notFound();
+    }
 
-        const description =
-          "Real out-the-door ticket prices, fees included, on Passr.";
+    return {
+      event: event ?? null,
+    };
+  },
 
-        return {
-          meta: [
-            {
-              title,
-            },
-            {
-              name: "description",
-              content:
-                description,
-            },
-            {
-              property:
-                "og:title",
-              content:
-                title,
-            },
-            {
-              property:
-                "og:description",
-              content:
-                description,
-            },
-          ],
-        };
-      }
-
-      const title =
-        `${event.name} — real prices on Passr`;
-
-      const description =
-        event.startingAt !==
-        undefined
-          ? `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across marketplaces from ${money(event.startingAt)}`
-          : `${event.date} at ${event.venue}, ${event.city}. Find and compare tickets on Passr.`;
-
+  head: ({ loaderData }) => {
+    if (!loaderData) {
       return {
         meta: [
           {
-            title,
+            title:
+              "Event unavailable — Passr",
           },
+          {
+            name: "robots",
+            content: "noindex",
+          },
+        ],
+      };
+    }
+
+    const { event } =
+      loaderData;
+
+    if (!event) {
+      const title =
+        "Event prices — Passr";
+
+      const description =
+        "Real out-the-door ticket prices, fees included, on Passr.";
+
+      return {
+        meta: [
+          { title },
           {
             name: "description",
-            content:
-              description,
+            content: description,
           },
           {
-            property:
-              "og:title",
-            content:
-              title,
+            property: "og:title",
+            content: title,
           },
           {
             property:
               "og:description",
-            content:
-              description,
+            content: description,
           },
         ],
       };
-    },
+    }
 
-    component:
-      EventRoute,
-  });
+    const title = `${event.name} — real prices on Passr`;
+
+    const description =
+      event.startingAt !==
+      undefined
+        ? `${event.date} at ${event.venue}, ${event.city}. Compare out-the-door prices across marketplaces from ${money(event.startingAt)}`
+        : `${event.date} at ${event.venue}, ${event.city}. Find and compare tickets on Passr.`;
+
+    return {
+      meta: [
+        { title },
+        {
+          name: "description",
+          content: description,
+        },
+        {
+          property: "og:title",
+          content: title,
+        },
+        {
+          property:
+            "og:description",
+          content: description,
+        },
+      ],
+    };
+  },
+
+  component: EventRoute,
+});
 
 function Shell({
   children,
 }: {
-  children:
-    React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col bg-background pb-28">
@@ -281,18 +339,15 @@ function Shell({
 }
 
 function EventRoute() {
-  const {
-    eventId,
-  } = Route.useParams();
+  const { eventId } =
+    Route.useParams();
 
   const mock =
     getEvent(eventId);
 
   const isLive =
     !mock &&
-    isTicketmasterId(
-      eventId,
-    );
+    isTicketmasterId(eventId);
 
   const query =
     useQuery({
@@ -309,9 +364,7 @@ function EventRoute() {
 
   if (mock) {
     return (
-      <EventDetail
-        event={mock}
-      />
+      <EventDetail event={mock} />
     );
   }
 
@@ -343,8 +396,7 @@ function EventRoute() {
           </p>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            We couldn’t reach the
-            ticket provider.
+            We couldn’t reach the ticket provider.
             Try again in a moment.
           </p>
         </div>
@@ -364,9 +416,7 @@ function EventRoute() {
           </p>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            The provider didn’t
-            return any details
-            for it.
+            The provider didn’t return any details for it.
           </p>
         </div>
       </Shell>
@@ -374,9 +424,7 @@ function EventRoute() {
   }
 
   return (
-    <EventDetail
-      event={event}
-    />
+    <EventDetail event={event} />
   );
 }
 
@@ -392,11 +440,22 @@ function EventDetail({
   const watchlist =
     useWatchlist();
 
-  const saved =
-    isSaved(
-      watchlist,
-      event.id,
-    );
+  const saved = isSaved(
+    watchlist,
+    event.id,
+  );
+
+  /**
+   * NEW:
+   * Load actual marketplace quote data
+   * from Passr's marketplace API.
+   */
+  const marketplaceQuotes =
+    useQuery({
+      ...marketplaceQuotesQuery(
+        event,
+      ),
+    });
 
   const marketplaceLinks =
     useMemo(
@@ -445,44 +504,35 @@ function EventDetail({
           ...inventory.values(),
         ]
           .filter(
-            (i) =>
-              !i.soldOut,
+            (i) => !i.soldOut,
           )
           .sort(
             (a, b) =>
-              a.from -
-              b.from,
+              a.from - b.from,
           ),
       [inventory],
     );
 
-  const [
-    zoneId,
-    setZoneId,
-  ] = useState(
-    () =>
-      [
-        ...inventory.values(),
-      ]
-        .filter(
-          (i) =>
-            !i.soldOut,
-        )
-        .sort(
-          (a, b) =>
-            b.zone.tier -
-            a.zone.tier,
-        )[2]?.zone.id ??
-      available[0]
-        ?.zone.id ??
-      layout.zones[0]!
-        .id,
-  );
+  const [zoneId, setZoneId] =
+    useState(
+      () =>
+        [
+          ...inventory.values(),
+        ]
+          .filter(
+            (i) => !i.soldOut,
+          )
+          .sort(
+            (a, b) =>
+              b.zone.tier -
+              a.zone.tier,
+          )[2]?.zone.id ??
+        available[0]?.zone.id ??
+        layout.zones[0]!.id,
+    );
 
   const zone =
-    inventory.get(
-      zoneId,
-    ) ??
+    inventory.get(zoneId) ??
     available[0]!;
 
   const [
@@ -496,39 +546,63 @@ function EventDetail({
   const listing =
     zone.listings.find(
       (l) =>
-        l.id ===
-        listingId,
+        l.id === listingId,
     ) ??
     zone.listings[0]!;
 
-  const [
-    people,
-    setPeople,
-  ] = useState(2);
+  const [people, setPeople] =
+    useState(2);
 
+  /**
+   * Marketplace quotes sorted
+   * by total out-the-door price.
+   */
   const quotes =
     useMemo(
       () =>
-        quotesFor(
-          listing.base,
+        [
+          ...(marketplaceQuotes.data ??
+            []),
+        ].sort(
+          (a, b) =>
+            a.totalPrice -
+            b.totalPrice,
         ),
-      [listing.base],
+      [marketplaceQuotes.data],
     );
+
+  /**
+   * Fallback ONLY for the temporary
+   * seat-map/group UI when the API
+   * has no marketplace quote yet.
+   */
+  const fallbackTotal =
+    listing.base;
 
   const cheapest =
-    quotes[0]!;
+    quotes[0];
+
+  const cheapestTotal =
+    cheapest?.totalPrice ??
+    fallbackTotal;
+
+  const marketAverage =
+    cheapest?.marketAverage ??
+    zone.avg30;
 
   const delta =
-    Math.round(
-      ((cheapest.total -
-        zone.avg30) /
-        zone.avg30) *
-        100,
-    );
+    marketAverage > 0
+      ? Math.round(
+          ((cheapestTotal -
+            marketAverage) /
+            marketAverage) *
+            100,
+        )
+      : 0;
 
   const below =
-    cheapest.total <
-    zone.avg30;
+    cheapestTotal <
+    marketAverage;
 
   const selectZone = (
     id: string,
@@ -568,7 +642,7 @@ function EventDetail({
             onClick={() =>
               toggleSaved(
                 event,
-                cheapest.total,
+                cheapestTotal,
               )
             }
             aria-label={
@@ -597,7 +671,7 @@ function EventDetail({
         </div>
       </header>
 
-      <section className="bg-foreground px-6 pt-6 pb-8 text-background">
+      <section className="bg-foreground px-6 pb-8 pt-6 text-background">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-background/60">
           {event.category}
           {event.subtitle
@@ -644,9 +718,7 @@ function EventDetail({
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Search this event
-          across major ticket
-          sites.
+          Search this event across major ticket sites.
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -685,10 +757,8 @@ function EventDetail({
         </div>
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-          Passr links you to
-          ticket marketplaces.
-          Availability and
-          pricing are controlled
+          Passr links you to ticket marketplaces.
+          Availability and pricing are controlled
           by each provider.
         </p>
       </section>
@@ -699,8 +769,7 @@ function EventDetail({
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Tap any section to
-          see what's actually
+          Tap any section to see what's actually
           available there.
         </p>
 
@@ -721,9 +790,7 @@ function EventDetail({
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div className="min-w-0">
               <p className="truncate text-base font-bold">
-                {
-                  zone.zone.name
-                }
+                {zone.zone.name}
               </p>
 
               <p className="text-xs text-muted-foreground">
@@ -737,9 +804,7 @@ function EventDetail({
                   ? "listing"
                   : "listings"}{" "}
                 ·{" "}
-                {
-                  zone.seats
-                }{" "}
+                {zone.seats}{" "}
                 tickets
               </p>
             </div>
@@ -792,13 +857,11 @@ function EventDetail({
 
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-bold">
-                            {
-                              zone
-                                .zone
-                                .standing
-                                ? "General admission"
-                                : `Row ${l.row}`
-                            }
+                            {zone
+                              .zone
+                              .standing
+                              ? "General admission"
+                              : `Row ${l.row}`}
                           </span>
 
                           <span className="block text-xs text-muted-foreground">
@@ -859,86 +922,134 @@ function EventDetail({
         </div>
       </section>
 
+      {/* MARKETPLACE COMPARISON */}
       <section className="px-6 pt-8">
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Out-the-door price
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Per ticket, every
-          fee included.
+          Per ticket, every fee included.
         </p>
 
-        <ul className="mt-4 space-y-2">
-          {quotes.map(
-            (qt, i) => {
-              const best =
-                i === 0;
+        {marketplaceQuotes.isPending && (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Checking marketplace prices…
+          </div>
+        )}
 
-              return (
-                <li
-                  key={
-                    qt.marketplace
-                  }
-                  className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border px-4 py-4 ${
-                    best
-                      ? "border-primary bg-accent-soft"
-                      : "border-border"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-bold">
-                      {
-                        qt.marketplace
-                      }
-                    </p>
+        {marketplaceQuotes.isError && (
+          <div className="mt-4 rounded-xl border border-border px-4 py-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
 
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {money(
-                        qt.base,
-                      )}{" "}
-                      +{" "}
-                      {money(
-                        qt.fees,
-                      )}{" "}
-                      fees
-                    </p>
-                  </div>
+              <div>
+                <p className="text-sm font-bold">
+                  Marketplace prices unavailable
+                </p>
 
-                  <div className="shrink-0 text-right">
-                    <p
-                      className={`price text-2xl font-bold ${
-                        best
-                          ? "text-primary"
-                          : ""
-                      }`}
-                    >
-                      {money(
-                        qt.total,
-                      )}
-                    </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  We couldn't load live comparison
+                  data right now. Try again shortly.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
-                    {best && (
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
-                        Cheapest
-                      </p>
-                    )}
-                  </div>
-                </li>
-              );
-            },
+        {!marketplaceQuotes.isPending &&
+          !marketplaceQuotes.isError &&
+          quotes.length === 0 && (
+            <div className="mt-4 rounded-xl border border-border px-4 py-5 text-sm text-muted-foreground">
+              No marketplace quotes are available
+              for this event yet.
+            </div>
           )}
-        </ul>
+
+        {quotes.length > 0 && (
+          <ul className="mt-4 space-y-2">
+            {quotes.map(
+              (qt, i) => {
+                const best =
+                  i === 0;
+
+                return (
+                  <li
+                    key={`${qt.marketplace}-${qt.section ?? "event"}-${qt.row ?? "any"}-${qt.totalPrice}`}
+                    className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border px-4 py-4 ${
+                      best
+                        ? "border-primary bg-accent-soft"
+                        : "border-border"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold">
+                        {
+                          qt.marketplace
+                        }
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {money(
+                          qt.basePrice,
+                        )}{" "}
+                        +{" "}
+                        {money(
+                          qt.fees,
+                        )}{" "}
+                        fees
+                      </p>
+
+                      {(qt.section ||
+                        qt.row) && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {[
+                            qt.section,
+                            qt.row
+                              ? `Row ${qt.row}`
+                              : undefined,
+                          ]
+                            .filter(
+                              Boolean,
+                            )
+                            .join(
+                              " · ",
+                            )}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <p
+                        className={`price text-2xl font-bold ${
+                          best
+                            ? "text-primary"
+                            : ""
+                        }`}
+                      >
+                        {money(
+                          qt.totalPrice,
+                        )}
+                      </p>
+
+                      {best && (
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
+                          Cheapest
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              },
+            )}
+          </ul>
+        )}
 
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Marketplace prices
-          shown here are
-          currently Passr's
-          comparison layer.
-          Direct provider
-          inventory will replace
-          simulated quotes as
-          integrations are added.
+          Prices are provided through Passr's
+          marketplace comparison layer and may
+          change as inventory updates.
         </p>
       </section>
 
@@ -949,18 +1060,13 @@ function EventDetail({
 
         <p className="price mt-3 text-6xl font-bold leading-none">
           {money(
-            zone.avg30,
+            marketAverage,
           )}
         </p>
 
         <p className="mt-3 text-sm text-muted-foreground">
-          Average out-the-door
-          price paid for{" "}
-          {
-            zone.zone.name
-          }{" "}
-          over the last 30
-          days.
+          Average out-the-door price paid for{" "}
+          {zone.zone.name} over the last 30 days.
         </p>
 
         <span
@@ -991,16 +1097,15 @@ function EventDetail({
             Listing check passed.
           </span>{" "}
           <span className="text-muted-foreground">
-            Seller history, price
-            movement, and delivery
-            method all match
-            normal patterns for
-            this venue. Nothing
-            looks off.
+            Seller history, price movement,
+            and delivery method all match
+            normal patterns for this venue.
+            Nothing looks off.
           </span>
         </p>
       </section>
 
+      {/* TEMPORARY GROUP CALCULATOR */}
       <section className="mx-6 mt-4 rounded-2xl bg-foreground p-6 text-background">
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-background/60">
           Splitting with friends?
@@ -1062,7 +1167,7 @@ function EventDetail({
 
             <p className="price text-4xl font-bold leading-none">
               {money(
-                cheapest.total,
+                cheapestTotal,
               )}
             </p>
           </div>
@@ -1073,19 +1178,14 @@ function EventDetail({
           {people === 1
             ? "ticket"
             : "tickets"}{" "}
-          on{" "}
-          {
-            cheapest.marketplace
-          }{" "}
           ·{" "}
           <span className="font-bold text-background">
             {money(
-              cheapest.total *
+              cheapestTotal *
                 people,
             )}
           </span>{" "}
-          total, fees
-          included.
+          total, fees included.
         </p>
       </section>
 
@@ -1095,9 +1195,7 @@ function EventDetail({
             className="h-3.5 w-3.5 text-success"
             strokeWidth={3}
           />
-          Passr only reads
-          prices. We never mark
-          them up.
+          Passr only reads prices. We never mark them up.
         </p>
 
         <AffiliateNote />
@@ -1114,8 +1212,7 @@ function Stepper({
   disabled,
   label,
 }: {
-  children:
-    React.ReactNode;
+  children: React.ReactNode;
   onClick: () => void;
   disabled: boolean;
   label: string;
