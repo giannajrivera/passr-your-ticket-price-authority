@@ -1,303 +1,243 @@
-import type { PassrEvent, TicketMarketData } from "@/lib/types";
-
 /**
- * Passr marketplace/provider definitions.
+ * Passr marketplace utilities.
  *
- * This file is intentionally provider-agnostic.
+ * IMPORTANT:
+ * A marketplace is only shown when Passr has a verified,
+ * event-specific purchase URL.
  *
- * A marketplace should only be treated as "available" for an event when
- * Passr has a legitimate event/listing URL or real market data for it.
- *
- * Do NOT add generic marketplace search URLs here.
+ * We NEVER manufacture marketplace search URLs.
  */
 
-export type MarketplaceId =
-  | "ticketmaster"
-  | "seatgeek"
-  | "stubhub"
-  | "vivid-seats"
-  | "tickpick"
-  | "axs"
-  | "eventbrite"
-  | "dice"
-  | "partiful"
-  | "posh";
+export type MarketplaceName =
+  | "Ticketmaster"
+  | "TicketWeb"
+  | "Universe"
+  | "Front Gate Tickets"
+  | "SeatGeek"
+  | "StubHub"
+  | "Vivid Seats"
+  | "TickPick"
+  | "AXS"
+  | "Eventbrite"
+  | "DICE"
+  | "Partiful"
+  | "Posh"
+  | "Other";
 
-export type MarketplaceDefinition = {
-  id: MarketplaceId;
-  name: string;
-  connected: boolean;
+export type MarketplaceLink = {
+  name: MarketplaceName;
+  url: string;
+  verified: boolean;
 };
 
-export type EventMarketplace = {
-  id: MarketplaceId;
-  name: string;
-  url?: string;
-  startingPrice?: number | undefined;
-  currency?: string;
-  available: boolean;
-  lastUpdated?: string | undefined;
-};
-
-/**
- * Providers Passr knows about.
- *
- * `connected` means Passr currently has a real integration capable of
- * supplying event data. A provider being listed here does NOT mean that
- * provider should automatically appear on an event page.
- */
-export const MARKETPLACES: MarketplaceDefinition[] = [
+const MARKETPLACE_HOSTS: Array<{
+  name: MarketplaceName;
+  hosts: string[];
+}> = [
   {
-    id: "ticketmaster",
     name: "Ticketmaster",
-    connected: true,
+    hosts: [
+      "ticketmaster.com",
+      "www.ticketmaster.com",
+      "ticketmaster.ca",
+      "www.ticketmaster.ca",
+    ],
   },
   {
-    id: "seatgeek",
+    name: "TicketWeb",
+    hosts: [
+      "ticketweb.com",
+      "www.ticketweb.com",
+    ],
+  },
+  {
+    name: "Universe",
+    hosts: [
+      "universe.com",
+      "www.universe.com",
+    ],
+  },
+  {
+    name: "Front Gate Tickets",
+    hosts: [
+      "frontgatetickets.com",
+      "www.frontgatetickets.com",
+    ],
+  },
+  {
     name: "SeatGeek",
-    connected: false,
+    hosts: [
+      "seatgeek.com",
+      "www.seatgeek.com",
+    ],
   },
   {
-    id: "stubhub",
     name: "StubHub",
-    connected: false,
+    hosts: [
+      "stubhub.com",
+      "www.stubhub.com",
+    ],
   },
   {
-    id: "vivid-seats",
     name: "Vivid Seats",
-    connected: false,
+    hosts: [
+      "vividseats.com",
+      "www.vividseats.com",
+    ],
   },
   {
-    id: "tickpick",
     name: "TickPick",
-    connected: false,
+    hosts: [
+      "tickpick.com",
+      "www.tickpick.com",
+    ],
   },
   {
-    id: "axs",
     name: "AXS",
-    connected: false,
+    hosts: [
+      "axs.com",
+      "www.axs.com",
+    ],
   },
   {
-    id: "eventbrite",
     name: "Eventbrite",
-    connected: false,
+    hosts: [
+      "eventbrite.com",
+      "www.eventbrite.com",
+    ],
   },
   {
-    id: "dice",
     name: "DICE",
-    connected: false,
+    hosts: [
+      "dice.fm",
+      "www.dice.fm",
+    ],
   },
   {
-    id: "partiful",
     name: "Partiful",
-    connected: false,
+    hosts: [
+      "partiful.com",
+      "www.partiful.com",
+    ],
   },
   {
-    id: "posh",
-    name: "POSH",
-    connected: false,
+    name: "Posh",
+    hosts: [
+      "posh.vip",
+      "www.posh.vip",
+    ],
   },
 ];
 
-/**
- * Returns a marketplace definition by provider id.
- */
-export function getMarketplace(
-  id: MarketplaceId,
-): MarketplaceDefinition | undefined {
-  return MARKETPLACES.find(
-    (marketplace) => marketplace.id === id,
-  );
+function normalizeHost(hostname: string) {
+  return hostname
+    .toLowerCase()
+    .replace(/^www\./, "");
 }
 
 /**
- * Converts Passr's current event-level Ticketmaster URL and price into
- * marketplace data.
- *
- * This is deliberately conservative:
- *
- * - If Ticketmaster gives us a URL, it is a valid direct source.
- * - If Ticketmaster gives us a starting price, we preserve it.
- * - If either value is missing, we do not invent one.
+ * Determines which marketplace owns a verified event URL.
  */
-export function ticketmasterMarketplaceForEvent(
-  event: PassrEvent,
-): EventMarketplace | undefined {
-  if (event.source !== "ticketmaster") {
+export function identifyMarketplace(
+  url: string | undefined,
+): MarketplaceName | undefined {
+  if (!url) {
     return undefined;
   }
 
-  if (!event.ticketUrl) {
+  try {
+    const parsed = new URL(url);
+    const hostname = normalizeHost(
+      parsed.hostname,
+    );
+
+    const match = MARKETPLACE_HOSTS.find(
+      (marketplace) =>
+        marketplace.hosts.some(
+          (host) =>
+            normalizeHost(host) ===
+            hostname,
+        ),
+    );
+
+    return match?.name;
+  } catch {
     return undefined;
   }
+}
+
+/**
+ * Only accepts real absolute HTTP(S) URLs.
+ */
+export function isValidMarketplaceUrl(
+  url: string | undefined,
+): url is string {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    return (
+      parsed.protocol === "https:" ||
+      parsed.protocol === "http:"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Creates a verified marketplace link from an actual
+ * event-specific purchase URL.
+ *
+ * Unknown domains are allowed and labeled "Other"
+ * rather than being incorrectly attributed.
+ */
+export function marketplaceLinkFromUrl(
+  url: string | undefined,
+): MarketplaceLink | undefined {
+  if (!isValidMarketplaceUrl(url)) {
+    return undefined;
+  }
+
+  const marketplace =
+    identifyMarketplace(url) ??
+    "Other";
 
   return {
-    id: "ticketmaster",
-    name: "Ticketmaster",
-    url: event.ticketUrl,
-    startingPrice: event.startingAt,
-    available: true,
+    name: marketplace,
+    url,
+    verified: true,
   };
 }
 
 /**
- * Builds the direct ticket sources that Passr can legitimately show for
- * an event.
- *
- * IMPORTANT:
- * This function only returns sources for which Passr has actual data.
- *
- * It does NOT generate:
- *
- *   seatgeek.com/search/...
- *   stubhub.com/search/...
- *   vividseats.com/search/...
- *
- * Those are not proof that the specific event is available there.
+ * Removes duplicate URLs while preserving order.
  */
-export function marketplacesForEvent(
-  event: PassrEvent,
-  marketData: TicketMarketData[] = [],
-): EventMarketplace[] {
-  const sources: EventMarketplace[] = [];
+export function deduplicateMarketplaceLinks(
+  links: MarketplaceLink[],
+): MarketplaceLink[] {
+  const seen = new Set<string>();
 
-  const ticketmaster =
-    ticketmasterMarketplaceForEvent(event);
+  return links.filter((link) => {
+    const normalized =
+      link.url.trim();
 
-  if (ticketmaster) {
-    sources.push(ticketmaster);
-  }
-
-  /*
-   * Additional providers can be added here once Passr has a legitimate
-   * provider integration that returns an event/listing URL.
-   *
-   * Example future adapter:
-   *
-   * const seatGeek = ...
-   *
-   * if (seatGeek) {
-   *   sources.push(seatGeek);
-   * }
-   *
-   * Do not add a provider merely because its website exists.
-   */
-
-  for (const quote of marketData) {
-    const marketplaceId =
-      marketplaceIdFromName(quote.marketplace);
-
-    if (!marketplaceId) {
-      continue;
+    if (!normalized) {
+      return false;
     }
 
-    /*
-     * A quote without a purchase URL is market data, not a direct
-     * ticket source. It should not create a "Buy tickets" marketplace
-     * button.
-     */
-    if (!quote.purchaseUrl) {
-      continue;
+    const key =
+      normalized.toLowerCase();
+
+    if (seen.has(key)) {
+      return false;
     }
 
-    const existing =
-      sources.find(
-        (source) =>
-          source.id === marketplaceId,
-      );
+    seen.add(key);
 
-    if (existing) {
-      continue;
-    }
-
-    sources.push({
-      id: marketplaceId,
-      name:
-        getMarketplace(
-          marketplaceId,
-        )?.name ?? quote.marketplace,
-      url: quote.purchaseUrl,
-      startingPrice: quote.totalPrice,
-      available: true,
-      lastUpdated:
-        quote.lastUpdated,
-    });
-  }
-
-  return sources.filter(
-    (source) =>
-      source.available &&
-      Boolean(source.url),
-  );
-}
-
-/**
- * Converts a provider name returned by market data into Passr's
- * canonical marketplace id.
- */
-function marketplaceIdFromName(
-  value: string,
-): MarketplaceId | undefined {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-
-  switch (normalized) {
-    case "ticketmaster":
-      return "ticketmaster";
-
-    case "seatgeek":
-      return "seatgeek";
-
-    case "stubhub":
-      return "stubhub";
-
-    case "vivid seats":
-    case "vividseats":
-      return "vivid-seats";
-
-    case "tickpick":
-      return "tickpick";
-
-    case "axs":
-      return "axs";
-
-    case "eventbrite":
-      return "eventbrite";
-
-    case "dice":
-      return "dice";
-
-    case "partiful":
-      return "partiful";
-
-    case "posh":
-      return "posh";
-
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Returns the cheapest real quote from market data.
- *
- * Quotes without a total price are ignored.
- */
-export function cheapestMarketQuote(
-  marketData: TicketMarketData[],
-): TicketMarketData | undefined {
-  return marketData
-    .filter(
-      (quote) =>
-        Number.isFinite(
-          quote.totalPrice,
-        ),
-    )
-    .sort(
-      (a, b) =>
-        a.totalPrice -
-        b.totalPrice,
-    )[0];
+    return true;
+  });
 }
