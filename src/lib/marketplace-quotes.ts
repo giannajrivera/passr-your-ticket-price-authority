@@ -57,9 +57,9 @@ export function createMarketplaceListing(
       | "sold_out"
       | "unknown";
 
-    startingPrice?: number;
+    startingPrice?: number | undefined;
 
-    lastUpdated?: string;
+    lastUpdated?: string | undefined;
   },
 ): MarketplaceListing | null {
   if (!purchaseUrl.trim()) {

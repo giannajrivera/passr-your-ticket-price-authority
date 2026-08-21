@@ -117,3 +117,80 @@ export function getMarketplace(
     (marketplace) => marketplace.id === id,
   );
 }
+
+/**
+ * Marketplace hostname patterns used to identify the actual
+ * marketplace behind a provider's event URL.
+ */
+const MARKETPLACE_HOSTS: Array<{
+  id: MarketplaceId;
+  match: string[];
+}> = [
+  { id: "ticketmaster", match: ["ticketmaster.", "livenation."] },
+  { id: "ticketweb", match: ["ticketweb."] },
+  { id: "seatgeek", match: ["seatgeek."] },
+  { id: "stubhub", match: ["stubhub."] },
+  { id: "vividseats", match: ["vividseats."] },
+  { id: "tickpick", match: ["tickpick."] },
+  { id: "axs", match: ["axs."] },
+  { id: "eventbrite", match: ["eventbrite."] },
+  { id: "dice", match: ["dice.fm"] },
+  { id: "partiful", match: ["partiful."] },
+  { id: "posh", match: ["posh.vip"] },
+];
+
+/**
+ * Identify the marketplace that owns a given event URL.
+ * Returns undefined when the URL is missing or unrecognized.
+ */
+export function marketplaceLinkFromUrl(
+  url: string | undefined,
+): MarketplaceDefinition | undefined {
+  if (!url) return undefined;
+
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+
+  const entry = MARKETPLACE_HOSTS.find((candidate) =>
+    candidate.match.some((fragment) => host.includes(fragment)),
+  );
+
+  return entry ? getMarketplace(entry.id) : undefined;
+}
+
+/**
+ * A marketplace with a direct link for a specific event,
+ * shaped for the UI.
+ */
+export type EventMarketplace = {
+  id: MarketplaceId;
+  name: string;
+  url: string;
+  startingPrice?: number | undefined;
+};
+
+/**
+ * Build the direct-listing marketplace rows for an event.
+ * Passr never fabricates generic marketplace search links here.
+ */
+export function marketplacesForEvent(event: {
+  ticketUrl?: string | undefined;
+  startingAt?: number | undefined;
+}): EventMarketplace[] {
+  const marketplace = marketplaceLinkFromUrl(event.ticketUrl);
+
+  if (!marketplace || !event.ticketUrl) return [];
+
+  return [
+    {
+      id: marketplace.id,
+      name: marketplace.name,
+      url: event.ticketUrl,
+      startingPrice: event.startingAt,
+    },
+  ];
+}

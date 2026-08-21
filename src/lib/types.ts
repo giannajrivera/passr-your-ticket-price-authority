@@ -83,6 +83,8 @@ export type PassrEvent = {
    */
   ticketUrl?: string | undefined;
 
+  ticketMarketplace?: string | undefined;
+
   listingType?: ListingType | undefined;
 };
 
