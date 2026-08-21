@@ -1,23 +1,31 @@
 /**
- * Shared, provider-agnostic event and ticket types for Passr.
+ * Provider-agnostic types used throughout Passr.
  *
- * `PassrEvent` is intentionally decoupled from any single data source (mock
- * data today; Ticketmaster, Eventbrite, etc. later). It only describes an
- * event's core identity — the kind of fields a real event API can actually
- * provide.
+ * Passr separates:
  *
- * Ticket-analysis data (marketplace quotes, sections, market averages,
- * resale pricing) is NOT part of an event's identity and does not belong
- * here — real event provider APIs don't return that. See `TicketMarketData`
- * below for that shape instead. Passr-specific mock/market data (e.g. the
- * mock app's `Section`/`Quote` types) should build on top of `PassrEvent`
- * rather than being folded into it.
+ * 1. Event identity/data
+ * 2. Ticket-market data
+ * 3. Marketplace/provider information
+ *
+ * This lets Passr add Ticketmaster, SeatGeek, StubHub, Vivid Seats,
+ * TickPick, AXS, Eventbrite, DICE, and future providers without
+ * making Passr's core event model depend on one marketplace.
  */
 
-/** Where a `PassrEvent` originated. "mock" is Passr's current placeholder data. */
-export type EventSource = "mock" | "ticketmaster" | "eventbrite";
+/** Where an event originated. */
+export type EventSource =
+  | "mock"
+  | "ticketmaster"
+  | "eventbrite"
+  | "seatgeek"
+  | "stubhub"
+  | "vividseats"
+  | "tickpick"
+  | "axs"
+  | "dice"
+  | "other";
 
-/** Broad event category, used for filtering, icons, and venue-map layout. */
+/** Broad event category. */
 export type EventCategory =
   | "Concert"
   | "Sports"
@@ -29,92 +37,215 @@ export type EventCategory =
   | "Other";
 
 /**
- * Whether a `PassrEvent` is a standard, purchasable event listing, or a
- * non-standard listing that a provider returns as its own "event" — a
- * suite/box reservation, a parking pass, a VIP add-on package, etc.
- * Providers like Ticketmaster mix these into normal search results, so
- * Passr classifies them (conservatively, from the listing's name/metadata)
- * rather than guessing or dropping them. UI surfaces can use this later to
- * filter them out of discovery feeds.
+ * Standard purchasable event vs. provider-specific non-standard listing.
  */
-export type ListingType = "standard" | "suite" | "vip" | "parking" | "package" | "other";
+export type ListingType =
+  | "standard"
+  | "suite"
+  | "vip"
+  | "parking"
+  | "package"
+  | "other";
 
+/**
+ * Core Passr event.
+ *
+ * This type intentionally does NOT contain marketplace-specific
+ * ticket inventory. An event can have many marketplace sources.
+ */
 export type PassrEvent = {
-  /** Passr's internal identifier for this event. */
+  /** Passr's internal event identifier. */
   id: string;
-  /** Which provider this event's data came from. */
+
+  /** Provider this event came from. */
   source: EventSource;
-  /** The event's id in the source provider's own system (mirrors `id` for mock data). */
+
+  /** Original provider event ID. */
   sourceEventId: string;
 
   name: string;
-  /** Short line under the event name, e.g. supporting act or tour name. */
+
   subtitle?: string | undefined;
-  /** Longer free-text description, when a provider supplies one. */
+
   description?: string | undefined;
 
   category: EventCategory;
-  /** Provider-supplied genre, e.g. "Rock" or "Basketball". */
+
   genre?: string | undefined;
-  /** Provider-supplied sub-genre, e.g. "Alternative Rock". */
+
   subGenre?: string | undefined;
 
-  /** Human-readable date/time for display, e.g. "Fri, Sep 18 · 8:00 PM". */
+  /** Human-readable date/time used by the UI. */
   date: string;
-  /** Machine-readable ISO 8601 start date/time, when the provider gives one. */
+
+  /** Machine-readable event start time. */
   startDateTime?: string | undefined;
 
   venue: string;
+
   city: string;
+
   state?: string | undefined;
+
   country?: string | undefined;
+
   latitude?: number | undefined;
+
   longitude?: number | undefined;
 
   /** Hero/listing image URL. */
   image: string;
+
   /**
-   * Lowest known "starting at" price for the event, for list/card display.
-   * Undefined when the source provider doesn't expose pricing (common for
-   * real event APIs like Ticketmaster, which often list events with no
-   * price data at all). Never fabricate a number here — e.g. do not
-   * default to 0 — when a provider gives no price.
+   * Lowest known event-level starting price.
+   *
+   * This must remain undefined when the provider does not expose
+   * a trustworthy starting price.
    */
   startingAt?: number | undefined;
-  /** Whether this event should surface in "trending" sections. */
+
+  /** Whether this event should appear in trending surfaces. */
   trending: boolean;
 
-  /** Deep link to view/buy the event at the source provider, when available. */
+  /** Deep link to the provider's event page. */
   ticketUrl?: string | undefined;
 
-  /**
-   * Best-effort classification of standard vs. non-standard listing (suite,
-   * parking, VIP package, ...). Undefined for sources that don't need the
-   * distinction (e.g. mock data) — treat as equivalent to "standard".
-   */
+  /** Best-effort classification of unusual provider listings. */
   listingType?: ListingType | undefined;
 };
 
 /**
- * Ticket / resale-market data for a specific listing, section, or seat.
- * Kept separate from `PassrEvent` on purpose: real event APIs (Ticketmaster,
- * Eventbrite) don't supply historical market averages, resale quotes, or
- * section/row-level pricing — that's Passr's own market-analysis layer,
- * sourced separately (today from mock data, eventually from a pricing
- * provider) and joined to an event by id.
+ * Marketplace/provider identity.
+ *
+ * This is deliberately separate from PassrEvent so one event can
+ * have many marketplace sources.
+ */
+export type MarketplaceId =
+  | "ticketmaster"
+  | "seatgeek"
+  | "stubhub"
+  | "vividseats"
+  | "tickpick"
+  | "axs"
+  | "eventbrite"
+  | "dice"
+  | "other";
+
+export type Marketplace = {
+  id: MarketplaceId;
+  name: string;
+
+  /**
+   * Whether Passr currently has a real provider integration.
+   *
+   * false means Passr may only provide an external search/deep link.
+   */
+  integrated: boolean;
+
+  /**
+   * Whether the provider can supply live ticket inventory.
+   */
+  liveInventory: boolean;
+
+  /**
+   * Whether Passr can receive pricing from the provider.
+   */
+  livePricing: boolean;
+
+  /**
+   * Whether Passr can deep-link the user to the provider.
+   */
+  directLinks: boolean;
+};
+
+/**
+ * A single ticket listing.
+ *
+ * This is provider-agnostic. A listing can come from Ticketmaster,
+ * StubHub, SeatGeek, etc.
+ */
+export type TicketListing = {
+  id: string;
+
+  marketplace: MarketplaceId;
+
+  eventId: string;
+
+  section?: string | undefined;
+
+  row?: string | undefined;
+
+  quantity: number;
+
+  basePrice: number;
+
+  fees: number;
+
+  totalPrice: number;
+
+  currency?: string | undefined;
+
+  purchaseUrl?: string | undefined;
+
+  /**
+   * ISO timestamp indicating when this listing was last refreshed.
+   */
+  lastUpdated?: string | undefined;
+
+  /**
+   * Whether the listing is currently available.
+   */
+  available: boolean;
+};
+
+/**
+ * Ticket-market data associated with an event.
+ *
+ * This is the layer Passr will eventually populate from real
+ * marketplace integrations.
  */
 export type TicketMarketData = {
-  /** Marketplace this quote came from, e.g. "StubHub" or "Ticketmaster". */
+  eventId: string;
+
+  listings: TicketListing[];
+
+  /**
+   * Optional recent average price for the event/section.
+   */
+  marketAverage?: number | undefined;
+
+  /**
+   * ISO timestamp for the market snapshot.
+   */
+  lastUpdated?: string | undefined;
+};
+
+/**
+ * Backwards-compatible quote shape used by the current UI.
+ *
+ * This remains here during the migration so existing mock-data
+ * and event-page code can continue to work while the marketplace
+ * architecture is introduced.
+ */
+export type TicketQuote = {
   marketplace: string;
+  base: number;
+  fees: number;
+  total: number;
+  purchaseUrl?: string | undefined;
+};
+
+/**
+ * Backwards-compatible section/zone market information.
+ */
+export type TicketSectionMarket = {
+  marketplace?: MarketplaceId | undefined;
   section?: string | undefined;
   row?: string | undefined;
   basePrice: number;
   fees: number;
   totalPrice: number;
-  /** Recent (e.g. 30-day) average out-the-door price for this section, when known. */
   marketAverage?: number | undefined;
-  /** Deep link to purchase this specific listing. */
   purchaseUrl?: string | undefined;
-  /** ISO 8601 timestamp of when this quote was last refreshed. */
   lastUpdated?: string | undefined;
 };
