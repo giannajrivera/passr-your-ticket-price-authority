@@ -7,12 +7,12 @@ export type SavedEvent = {
   name: string;
   date: string;
   venue: string;
-  city?: string;
-  state?: string;
+  city?: string | undefined;
+  state?: string | undefined;
   category: PassrEvent["category"];
-  subtitle?: string;
-  image?: string;
-  ticketUrl?: string;
+  subtitle?: string | undefined;
+  image?: string | undefined;
+  ticketUrl?: string | undefined;
 };
 
 export type WatchItem = {

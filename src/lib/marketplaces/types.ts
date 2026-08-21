@@ -33,37 +33,37 @@ export type MarketplaceQuote = {
   /**
    * Lowest known ticket price before fees.
    */
-  basePrice?: number;
+  basePrice?: number | undefined;
 
   /**
    * Fees associated with the listing.
    */
-  fees?: number;
+  fees?: number | undefined;
 
   /**
    * Final estimated or confirmed out-the-door price.
    */
-  totalPrice?: number;
+  totalPrice?: number | undefined;
 
   /**
    * Section/zone when the provider exposes it.
    */
-  section?: string;
+  section?: string | undefined;
 
   /**
    * Row when the provider exposes it.
    */
-  row?: string;
+  row?: string | undefined;
 
   /**
    * Number of tickets represented by this listing.
    */
-  quantity?: number;
+  quantity?: number | undefined;
 
   /**
    * URL where the user can continue to the provider.
    */
-  purchaseUrl?: string;
+  purchaseUrl?: string | undefined;
 
   /**
    * Whether this quote represents actual provider data
@@ -74,12 +74,12 @@ export type MarketplaceQuote = {
   /**
    * When the quote was last refreshed.
    */
-  lastUpdated?: string;
+  lastUpdated?: string | undefined;
 
   /**
    * Optional explanation when the provider isn't live.
    */
-  note?: string;
+  note?: string | undefined;
 };
 
 export type MarketplaceProvider = {

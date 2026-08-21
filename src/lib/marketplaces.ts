@@ -33,10 +33,10 @@ export type EventMarketplace = {
   id: MarketplaceId;
   name: string;
   url?: string;
-  startingPrice?: number;
+  startingPrice?: number | undefined;
   currency?: string;
   available: boolean;
-  lastUpdated?: string;
+  lastUpdated?: string | undefined;
 };
 
 /**
