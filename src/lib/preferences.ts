@@ -6,7 +6,12 @@
  * structured facets.
  */
 
-import { categoryOf, getNode, labelFor, type Gender } from "@/lib/taxonomy";
+import {
+  categoryOf,
+  getNode,
+  labelFor,
+  type Gender,
+} from "@/lib/taxonomy";
 
 export type BudgetBand =
   | "under-75"
@@ -38,6 +43,14 @@ export type EventVibe =
   | "date-night"
   | "solo";
 
+/**
+ * Global notification preferences.
+ *
+ * These control whether a particular TYPE of notification is allowed
+ * for the user's account.
+ *
+ * Individual saved events have their own `notify` setting in watchlist.ts.
+ */
 export type NotificationPreferences = {
   emailUpdates: boolean;
   smsUpdates: boolean;
@@ -46,6 +59,14 @@ export type NotificationPreferences = {
   newEventAlerts: boolean;
   recommendationUpdates: boolean;
 };
+
+export type NotificationType =
+  | "emailUpdates"
+  | "smsUpdates"
+  | "priceDropAlerts"
+  | "eventUpdates"
+  | "newEventAlerts"
+  | "recommendationUpdates";
 
 export type EventPreferences = {
   /** Schema version so stored profiles can be migrated safely. */
@@ -67,20 +88,49 @@ export type EventPreferences = {
   notifications?: NotificationPreferences | undefined;
 };
 
-export const emptyPreferences = (): EventPreferences => ({
-  version: 2,
-  categories: [],
-  interests: [],
-  vibes: [],
-  notifications: {
+/**
+ * Single source of truth for Passr's default notification settings.
+ */
+export const defaultNotificationPreferences =
+  (): NotificationPreferences => ({
     emailUpdates: true,
     smsUpdates: false,
     priceDropAlerts: true,
     eventUpdates: true,
     newEventAlerts: true,
     recommendationUpdates: true,
-  },
+  });
+
+export const emptyPreferences = (): EventPreferences => ({
+  version: 2,
+  categories: [],
+  interests: [],
+  vibes: [],
+  notifications: defaultNotificationPreferences(),
 });
+
+/**
+ * Returns complete notification preferences even when an older profile
+ * does not have the notifications object yet.
+ */
+export function getNotificationPreferences(
+  prefs?: EventPreferences,
+): NotificationPreferences {
+  return {
+    ...defaultNotificationPreferences(),
+    ...(prefs?.notifications ?? {}),
+  };
+}
+
+/**
+ * Check whether a specific global notification type is enabled.
+ */
+export function isNotificationEnabled(
+  prefs: EventPreferences | undefined,
+  type: NotificationType,
+): boolean {
+  return getNotificationPreferences(prefs)[type];
+}
 
 /* ------------------------------------------------------------- Facets */
 
@@ -98,15 +148,20 @@ export type PreferenceFacets = {
   gender: Gender;
 };
 
-export function resolveFacets(id: string): PreferenceFacets | undefined {
+export function resolveFacets(
+  id: string,
+): PreferenceFacets | undefined {
   const node = getNode(id);
   const cat = categoryOf(id);
 
   if (!node || !cat) return undefined;
 
   const parts = id.split(".");
+
   const at = (n: number) =>
-    parts.length > n ? parts.slice(0, n + 1).join(".") : undefined;
+    parts.length > n
+      ? parts.slice(0, n + 1).join(".")
+      : undefined;
 
   const sub = at(1);
   const detail = at(2);
@@ -117,11 +172,17 @@ export function resolveFacets(id: string): PreferenceFacets | undefined {
     category: cat.id,
     categoryLabel: cat.label,
     subcategory: sub,
-    subcategoryLabel: sub ? labelFor(sub) : undefined,
+    subcategoryLabel: sub
+      ? labelFor(sub)
+      : undefined,
     detail,
-    detailLabel: detail ? labelFor(detail) : undefined,
+    detailLabel: detail
+      ? labelFor(detail)
+      : undefined,
     subDetail,
-    subDetailLabel: subDetail ? labelFor(subDetail) : undefined,
+    subDetailLabel: subDetail
+      ? labelFor(subDetail)
+      : undefined,
     gender: node.gender,
   };
 }
@@ -132,7 +193,9 @@ export function facetsFor(
 ): PreferenceFacets[] {
   return prefs.interests
     .map(resolveFacets)
-    .filter((f): f is PreferenceFacets => Boolean(f));
+    .filter(
+      (f): f is PreferenceFacets => Boolean(f),
+    );
 }
 
 /** Selected interest ids grouped by top-level category id. */
@@ -278,17 +341,33 @@ export const vibeOptions: {
   },
 ];
 
-export const labelForBudget = (id?: BudgetBand) =>
-  budgetOptions.find((o) => o.id === id)?.label;
+export const labelForBudget = (
+  id?: BudgetBand,
+) =>
+  budgetOptions.find(
+    (o) => o.id === id,
+  )?.label;
 
-export const labelForTravel = (id?: TravelRadius) =>
-  travelOptions.find((o) => o.id === id)?.label;
+export const labelForTravel = (
+  id?: TravelRadius,
+) =>
+  travelOptions.find(
+    (o) => o.id === id,
+  )?.label;
 
-export const labelForHorizon = (id?: PlanningHorizon) =>
-  horizonOptions.find((o) => o.id === id)?.label;
+export const labelForHorizon = (
+  id?: PlanningHorizon,
+) =>
+  horizonOptions.find(
+    (o) => o.id === id,
+  )?.label;
 
-export const labelForVibe = (id: EventVibe) =>
-  vibeOptions.find((o) => o.id === id)?.label ?? id;
+export const labelForVibe = (
+  id: EventVibe,
+) =>
+  vibeOptions.find(
+    (o) => o.id === id,
+  )?.label ?? id;
 
 /* ------------------------------------------- Legacy answers compatibility */
 
@@ -298,9 +377,13 @@ export function toLegacyAnswers(
   const byCat = interestsByCategory(prefs);
 
   const answers: Record<string, string[]> = {
-    categories: prefs.categories.map((c) => labelFor(c)),
-    genres: (byCat.get("music") ?? []).map(labelFor),
-    teams: (byCat.get("sports") ?? []).map(labelFor),
+    categories: prefs.categories.map(labelFor),
+    genres: (
+      byCat.get("music") ?? []
+    ).map(labelFor),
+    teams: (
+      byCat.get("sports") ?? []
+    ).map(labelFor),
   };
 
   if (prefs.budget) {
@@ -322,7 +405,8 @@ export function toLegacyAnswers(
   }
 
   if (prefs.vibes.length) {
-    answers["seating"] = prefs.vibes.map(labelForVibe);
+    answers["seating"] =
+      prefs.vibes.map(labelForVibe);
   }
 
   return answers;
