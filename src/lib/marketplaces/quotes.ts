@@ -1,4 +1,3 @@
-
 import { quotesFor } from "@/lib/mock-data";
 import type { PassrEvent } from "@/lib/types";
 
