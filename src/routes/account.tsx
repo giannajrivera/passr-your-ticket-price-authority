@@ -1,5 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import {
+  createFileRoute,
+  Link,
+} from "@tanstack/react-router";
+import {
+  useEffect,
+  useState,
+} from "react";
 import {
   ArrowLeft,
   Bell,
@@ -20,6 +26,7 @@ import {
 } from "@/lib/profile";
 import {
   emptyPreferences,
+  getNotificationPreferences,
   labelForBudget,
   labelForHorizon,
   labelForTravel,
@@ -29,7 +36,9 @@ import {
 import { labelFor } from "@/lib/taxonomy";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/account")({
+export const Route = createFileRoute(
+  "/account",
+)({
   component: Account,
 });
 
@@ -43,7 +52,9 @@ function Account() {
   const [profile, setProfile] =
     useState<PassrProfile | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
+
   const [editingProfile, setEditingProfile] =
     useState(false);
 
@@ -56,13 +67,18 @@ function Account() {
     async function load() {
       if (authLoading) return;
 
-      const localProfile = getProfile();
+      const localProfile =
+        getProfile();
 
       if (!mounted) return;
 
       setProfile(localProfile);
-      setName(localProfile?.name ?? "");
-      setPhone(localProfile?.phone ?? "");
+      setName(
+        localProfile?.name ?? "",
+      );
+      setPhone(
+        localProfile?.phone ?? "",
+      );
       setLoading(false);
     }
 
@@ -79,7 +95,8 @@ function Account() {
     const updatedProfile: PassrProfile = {
       ...profile,
       name: name.trim(),
-      phone: phone.trim() || undefined,
+      phone:
+        phone.trim() || undefined,
     };
 
     saveProfile(updatedProfile);
@@ -87,7 +104,9 @@ function Account() {
     setEditingProfile(false);
 
     if (user) {
-      await syncProfileToSupabase(user.id);
+      await syncProfileToSupabase(
+        user.id,
+      );
     }
   }
 
@@ -109,7 +128,8 @@ function Account() {
     );
   }
 
-  const preferences = profile?.preferences;
+  const preferences =
+    profile?.preferences;
 
   return (
     <main className="min-h-screen bg-background pb-28 text-foreground">
@@ -128,7 +148,8 @@ function Account() {
           </h1>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Manage your Passr profile, preferences, and notifications.
+            Manage your Passr profile,
+            preferences, and notifications.
           </p>
         </header>
 
@@ -145,7 +166,8 @@ function Account() {
                 </h2>
 
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Save your Watchlist across devices and keep your Passr
+                  Save your Watchlist across
+                  devices and keep your Passr
                   preferences with you.
                 </p>
 
@@ -176,13 +198,17 @@ function Account() {
               <button
                 type="button"
                 onClick={() =>
-                  setEditingProfile((value) => !value)
+                  setEditingProfile(
+                    (value) => !value,
+                  )
                 }
                 className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold transition hover:bg-muted"
               >
                 <Pencil className="h-3.5 w-3.5" />
 
-                {editingProfile ? "Cancel" : "Edit"}
+                {editingProfile
+                  ? "Cancel"
+                  : "Edit"}
               </button>
             )}
           </div>
@@ -201,13 +227,16 @@ function Account() {
                     <input
                       value={name}
                       onChange={(event) =>
-                        setName(event.target.value)
+                        setName(
+                          event.target.value,
+                        )
                       }
                       className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                   ) : (
                     <p className="mt-1 text-sm font-medium">
-                      {profile.name || "Not added"}
+                      {profile.name ||
+                        "Not added"}
                     </p>
                   )}
                 </div>
@@ -241,7 +270,9 @@ function Account() {
                     <input
                       value={phone}
                       onChange={(event) =>
-                        setPhone(event.target.value)
+                        setPhone(
+                          event.target.value,
+                        )
                       }
                       type="tel"
                       placeholder="Add phone number"
@@ -249,7 +280,8 @@ function Account() {
                     />
                   ) : (
                     <p className="mt-1 text-sm font-medium">
-                      {profile.phone || "Not added"}
+                      {profile.phone ||
+                        "Not added"}
                     </p>
                   )}
                 </div>
@@ -269,7 +301,8 @@ function Account() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Complete onboarding to create your Passr profile.
+              Complete onboarding to
+              create your Passr profile.
             </p>
           )}
         </section>
@@ -290,7 +323,9 @@ function Account() {
         {user && (
           <button
             type="button"
-            onClick={() => void handleSignOut()}
+            onClick={() =>
+              void handleSignOut()
+            }
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-border px-5 py-4 text-sm font-semibold text-muted-foreground transition hover:border-destructive/40 hover:text-destructive"
           >
             <LogOut className="h-4 w-4" />
@@ -309,12 +344,15 @@ function PreferencesSection({
 }: {
   preferences: EventPreferences;
 }) {
-  const interests = preferences.interests
-    .map((id) => ({
-      id,
-      label: labelFor(id),
-    }))
-    .filter((item) => item.label);
+  const interests =
+    preferences.interests
+      .map((id) => ({
+        id,
+        label: labelFor(id),
+      }))
+      .filter(
+        (item) => item.label,
+      );
 
   return (
     <section className="mt-6 rounded-3xl border border-border bg-card p-5">
@@ -324,13 +362,14 @@ function PreferencesSection({
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          These are the choices Passr uses to personalize
-          your events.
+          These are the choices Passr
+          uses to personalize your events.
         </p>
       </div>
 
       <div className="space-y-5">
-        {preferences.categories.length > 0 && (
+        {preferences.categories.length >
+          0 && (
           <PreferenceRow
             label="Categories"
             value={preferences.categories
@@ -343,7 +382,10 @@ function PreferencesSection({
           <PreferenceRow
             label="Interests"
             value={interests
-              .map((item) => item.label)
+              .map(
+                (item) =>
+                  item.label,
+              )
               .join(", ")}
           />
         )}
@@ -352,7 +394,9 @@ function PreferencesSection({
           <PreferenceRow
             label="Budget"
             value={
-              labelForBudget(preferences.budget) ??
+              labelForBudget(
+                preferences.budget,
+              ) ??
               preferences.budget
             }
           />
@@ -362,7 +406,9 @@ function PreferencesSection({
           <PreferenceRow
             label="Travel"
             value={
-              labelForTravel(preferences.travel) ??
+              labelForTravel(
+                preferences.travel,
+              ) ??
               preferences.travel
             }
           />
@@ -372,13 +418,16 @@ function PreferencesSection({
           <PreferenceRow
             label="Planning"
             value={
-              labelForHorizon(preferences.horizon) ??
+              labelForHorizon(
+                preferences.horizon,
+              ) ??
               preferences.horizon
             }
           />
         )}
 
-        {preferences.vibes.length > 0 && (
+        {preferences.vibes.length >
+          0 && (
           <PreferenceRow
             label="Vibe"
             value={preferences.vibes
@@ -387,14 +436,17 @@ function PreferencesSection({
           />
         )}
 
-        {!preferences.categories.length &&
-          !preferences.interests.length &&
+        {!preferences.categories
+          .length &&
+          !preferences.interests
+            .length &&
           !preferences.vibes.length &&
           !preferences.budget &&
           !preferences.travel &&
           !preferences.horizon && (
             <p className="text-sm text-muted-foreground">
-              You haven't selected any preferences yet.
+              You haven't selected any
+              preferences yet.
             </p>
           )}
       </div>
@@ -431,19 +483,15 @@ function NotificationSettings({
     profile: PassrProfile,
   ) => void;
 }) {
-  const preferences = profile.preferences;
+  const preferences =
+    profile.preferences;
 
   if (!preferences) return null;
 
   const notifications =
-    preferences.notifications ?? {
-      emailUpdates: true,
-      smsUpdates: false,
-      priceDropAlerts: true,
-      eventUpdates: true,
-      newEventAlerts: true,
-      recommendationUpdates: true,
-    };
+    getNotificationPreferences(
+      preferences,
+    );
 
   async function updateNotification(
     key:
@@ -461,18 +509,20 @@ function NotificationSettings({
       return;
     }
 
-    const nextPreferences: EventPreferences = {
-      ...emptyPreferences(),
-      ...preferences,
-      notifications: {
-        ...notifications,
-        [key]: !notifications[key],
-      },
-    };
+    const nextPreferences: EventPreferences =
+      {
+        ...emptyPreferences(),
+        ...preferences,
+        notifications: {
+          ...notifications,
+          [key]: !notifications[key],
+        },
+      };
 
     const nextProfile: PassrProfile = {
       ...profile,
-      preferences: nextPreferences,
+      preferences:
+        nextPreferences,
     };
 
     onProfileChange(nextProfile);
@@ -483,7 +533,9 @@ function NotificationSettings({
     } = await supabase.auth.getUser();
 
     if (user) {
-      await syncProfileToSupabase(user.id);
+      await syncProfileToSupabase(
+        user.id,
+      );
     }
   }
 
@@ -501,7 +553,9 @@ function NotificationSettings({
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Choose what Passr sends you.
+              Choose which types of
+              notifications Passr can send
+              you.
             </p>
           </div>
         </div>
@@ -511,7 +565,9 @@ function NotificationSettings({
         <NotificationToggle
           label="Email updates"
           description="Important Passr updates and account information."
-          checked={notifications.emailUpdates}
+          checked={
+            notifications.emailUpdates
+          }
           onChange={() =>
             void updateNotification(
               "emailUpdates",
@@ -521,8 +577,10 @@ function NotificationSettings({
 
         <NotificationToggle
           label="Price-drop alerts"
-          description="Let me know when a saved event gets cheaper."
-          checked={notifications.priceDropAlerts}
+          description="Let me know when tickets for a saved event get cheaper."
+          checked={
+            notifications.priceDropAlerts
+          }
           onChange={() =>
             void updateNotification(
               "priceDropAlerts",
@@ -532,8 +590,10 @@ function NotificationSettings({
 
         <NotificationToggle
           label="Event updates"
-          description="Changes to events you're watching or following."
-          checked={notifications.eventUpdates}
+          description="Changes to saved events, including date, venue, or event details."
+          checked={
+            notifications.eventUpdates
+          }
           onChange={() =>
             void updateNotification(
               "eventUpdates",
@@ -544,7 +604,9 @@ function NotificationSettings({
         <NotificationToggle
           label="New event alerts"
           description="Tell me when new events match my interests."
-          checked={notifications.newEventAlerts}
+          checked={
+            notifications.newEventAlerts
+          }
           onChange={() =>
             void updateNotification(
               "newEventAlerts",
@@ -572,7 +634,9 @@ function NotificationSettings({
               ? `Send updates to ${profile.phone}.`
               : "Add a phone number above to enable text notifications."
           }
-          checked={notifications.smsUpdates}
+          checked={
+            notifications.smsUpdates
+          }
           disabled={!profile.phone}
           onChange={() =>
             void updateNotification(
@@ -601,7 +665,9 @@ function NotificationToggle({
   return (
     <div
       className={`flex items-center justify-between gap-4 py-4 ${
-        disabled ? "opacity-50" : ""
+        disabled
+          ? "opacity-50"
+          : ""
       }`}
     >
       <div className="min-w-0">
@@ -622,7 +688,9 @@ function NotificationToggle({
         disabled={disabled}
         onClick={onChange}
         className={`relative h-7 w-12 shrink-0 rounded-full transition ${
-          checked ? "bg-primary" : "bg-muted"
+          checked
+            ? "bg-primary"
+            : "bg-muted"
         } ${
           disabled
             ? "cursor-not-allowed"
@@ -631,7 +699,9 @@ function NotificationToggle({
       >
         <span
           className={`absolute top-1 h-5 w-5 rounded-full bg-background shadow-sm transition ${
-            checked ? "left-6" : "left-1"
+            checked
+              ? "left-6"
+              : "left-1"
           }`}
         />
       </button>
