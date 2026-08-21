@@ -11,6 +11,9 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getProfile,
+  loadProfileFromSupabase,
+  saveProfile,
+  syncAndLoadProfile,
   syncProfileToSupabase,
 } from "@/lib/profile";
 
@@ -18,111 +21,170 @@ type AuthContextValue = {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  sendMagicLink: (
-    email: string,
-  ) => Promise<{ error: Error | null }>;
+  sendMagicLink: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 };
 
-const AuthContext =
-  createContext<AuthContextValue | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [session, setSession] =
-    useState<Session | null>(null);
-
-  const [loading, setLoading] =
-    useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    async function initializeAuth() {
+    async function hydrateAuthenticatedProfile(userId: string) {
       try {
-        const {
-          data,
-          error,
-        } = await supabase.auth.getSession();
+        /*
+         * IMPORTANT:
+         *
+         * First try to restore the account from Supabase.
+         * We do NOT immediately push localStorage into Supabase here because
+         * localStorage may be stale when the user signs in on another device.
+         */
+        const remoteProfile =
+          await loadProfileFromSupabase(userId);
 
-        if (!mounted) return;
+        if (remoteProfile) {
+          if (mounted) {
+            saveProfile(remoteProfile);
+          }
 
-        if (error) {
-          console.error(
-            "Failed to restore Supabase session:",
-            error,
-          );
-
-          setSession(null);
-          setLoading(false);
           return;
         }
 
-        const nextSession = data.session ?? null;
+        /*
+         * No cloud profile exists yet.
+         *
+         * This is most likely a brand-new authenticated user who completed
+         * onboarding locally before signing in. In that case, create the
+         * cloud profile from the local profile.
+         */
+        const localProfile = getProfile();
 
-        setSession(nextSession);
-        setLoading(false);
+        if (localProfile) {
+          await syncProfileToSupabase(userId);
+        }
+      } catch (error) {
+        console.error(
+          "[Passr] Failed to hydrate authenticated profile:",
+          error,
+        );
+      }
+    }
+
+    async function initializeAuth() {
+      try {
+        const {
+          data: { session: currentSession },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error(
+            "[Passr] Failed to restore auth session:",
+            error,
+          );
+        }
+
+        if (!mounted) return;
+
+        setSession(currentSession);
 
         /*
-         * If Supabase already has a user, make sure the
-         * locally-created Passr profile is synchronized.
-         *
-         * This is intentionally done after auth state is
-         * available so the rest of the app can render.
+         * The auth provider should finish loading after the session is known.
+         * Profile hydration happens separately so the entire app doesn't
+         * remain stuck on a loading screen if Supabase profile data is slow.
          */
-        if (nextSession?.user) {
-          void syncProfileToSupabase(
-            nextSession.user.id,
+        setLoading(false);
+
+        if (currentSession?.user) {
+          void hydrateAuthenticatedProfile(
+            currentSession.user.id,
           );
         }
       } catch (error) {
         console.error(
-          "Unexpected auth initialization error:",
+          "[Passr] Auth initialization failed:",
           error,
         );
 
-        if (!mounted) return;
-
-        setSession(null);
-        setLoading(false);
+        if (mounted) {
+          setSession(null);
+          setLoading(false);
+        }
       }
     }
 
     void initializeAuth();
 
     const {
-      data: {
-        subscription,
-      },
+      data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (_event, nextSession) => {
+      (event, nextSession) => {
         if (!mounted) return;
 
         setSession(nextSession);
         setLoading(false);
 
-        if (nextSession?.user) {
-          /*
-           * Do not block the auth callback on profile
-           * synchronization. Supabase auth should finish
-           * first; profile synchronization can happen
-           * immediately afterward.
-           */
-          setTimeout(() => {
-            if (!mounted) return;
+        if (!nextSession?.user) {
+          return;
+        }
 
-            const profile = getProfile();
+        /*
+         * Give Supabase's auth state transaction a chance to complete before
+         * querying profile tables.
+         */
+        setTimeout(() => {
+          if (!mounted) return;
 
-            if (profile) {
-              void syncProfileToSupabase(
-                nextSession.user.id,
+          void (async () => {
+            try {
+              const remoteProfile =
+                await loadProfileFromSupabase(
+                  nextSession.user.id,
+                );
+
+              if (remoteProfile) {
+                if (mounted) {
+                  saveProfile(remoteProfile);
+                }
+
+                return;
+              }
+
+              /*
+               * A new user may have completed onboarding before authentication.
+               * Only in that case do we create the initial cloud profile.
+               */
+              const localProfile = getProfile();
+
+              if (localProfile) {
+                await syncAndLoadProfile(
+                  nextSession.user.id,
+                );
+              }
+            } catch (error) {
+              console.error(
+                "[Passr] Failed to restore profile after auth change:",
+                error,
               );
             }
-          }, 0);
-        }
+          })();
+        }, 0);
+
+        /*
+         * The event is intentionally not used to blindly sync localStorage.
+         *
+         * This prevents a stale device cache from overwriting the user's
+         * actual account data.
+         */
+        void event;
       },
     );
 
@@ -135,38 +197,26 @@ export function AuthProvider({
   const value = useMemo<AuthContextValue>(
     () => ({
       user: session?.user ?? null,
-
       session,
-
       loading,
 
       async sendMagicLink(email: string) {
-        const cleanedEmail = email.trim();
+        const normalizedEmail = email.trim().toLowerCase();
 
-        if (!cleanedEmail) {
+        if (!normalizedEmail) {
           return {
-            error: new Error(
-              "Please enter your email address.",
-            ),
+            error: new Error("Please enter your email address."),
           };
         }
 
-        const {
-          error,
-        } = await supabase.auth.signInWithOtp({
-          email: cleanedEmail,
-          options: {
-            /*
-             * Supabase will return the user here after
-             * they click the magic link.
-             *
-             * Using the current origin makes this work
-             * both locally and on the published Passr app.
-             */
-            emailRedirectTo:
-              window.location.origin,
-          },
-        });
+        const { error } =
+          await supabase.auth.signInWithOtp({
+            email: normalizedEmail,
+            options: {
+              emailRedirectTo:
+                window.location.origin,
+            },
+          });
 
         return {
           error: error
@@ -176,11 +226,17 @@ export function AuthProvider({
       },
 
       async signOut() {
-        try {
+        const { error } =
           await supabase.auth.signOut();
-        } finally {
-          setSession(null);
+
+        if (error) {
+          console.error(
+            "[Passr] Failed to sign out:",
+            error,
+          );
         }
+
+        setSession(null);
       },
     }),
     [session, loading],
