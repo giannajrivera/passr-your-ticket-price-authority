@@ -1,4 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+} from "@tanstack/react-router";
 import {
   Bell,
   BellOff,
@@ -19,7 +22,9 @@ import {
   type WatchItem,
 } from "@/lib/watchlist";
 
-export const Route = createFileRoute("/watchlist")({
+export const Route = createFileRoute(
+  "/watchlist",
+)({
   component: Watchlist,
 });
 
@@ -45,14 +50,16 @@ function Watchlist() {
               </h1>
 
               <p className="mt-2 text-sm text-muted-foreground">
-                Keep an eye on events and get notified when prices move.
+                Keep an eye on events and choose which saved events you want price alerts for.
               </p>
             </div>
 
             {items.length > 0 && (
               <span className="shrink-0 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
                 {items.length}{" "}
-                {items.length === 1 ? "event" : "events"}
+                {items.length === 1
+                  ? "event"
+                  : "events"}
               </span>
             )}
           </div>
@@ -62,9 +69,16 @@ function Watchlist() {
           <EmptyWatchlist />
         ) : (
           <div className="space-y-4">
-            {items.map((item) => (
-              <WatchlistCard key={item.eventId} item={item} />
-            ))}
+            {items.map(
+              (item) => (
+                <WatchlistCard
+                  key={
+                    item.eventId
+                  }
+                  item={item}
+                />
+              ),
+            )}
           </div>
         )}
       </div>
@@ -86,8 +100,10 @@ function EmptyWatchlist() {
       </h2>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-        Save events you're interested in and Passr will keep them here so
-        you can watch prices and stay on top of ticket changes.
+        Save events you're interested in
+        and Passr will keep them here so
+        you can watch prices and stay on top
+        of ticket changes.
       </p>
 
       <Link
@@ -100,32 +116,56 @@ function EmptyWatchlist() {
   );
 }
 
-function WatchlistCard({ item }: { item: WatchItem }) {
-  const { event } = item;
+function WatchlistCard({
+  item,
+}: {
+  item: WatchItem;
+}) {
+  const { event } =
+    item;
 
-  const priceDifference = item.currentPrice - item.savedPrice;
-  const hasPriceChange = priceDifference !== 0;
-  const priceDropped = priceDifference < 0;
-  const priceIncreased = priceDifference > 0;
+  const priceDifference =
+    item.currentPrice -
+    item.savedPrice;
 
-  const savedPriceLabel = money(item.savedPrice);
-  const currentPriceLabel = money(item.currentPrice);
+  const hasPriceChange =
+    priceDifference !== 0;
+
+  const priceDropped =
+    priceDifference < 0;
+
+  const priceIncreased =
+    priceDifference > 0;
+
+  const savedPriceLabel =
+    money(item.savedPrice);
+
+  const currentPriceLabel =
+    money(item.currentPrice);
 
   function handleRemove() {
-    toggleSaved(
+    void toggleSaved(
       {
         id: event.id,
         name: event.name,
         date: event.date,
         venue: event.venue,
-        city: event.city ?? "",
-        state: event.state ?? "",
-        category: event.category,
-        subtitle: event.subtitle ?? "",
-        image: event.image ?? "",
-        ticketUrl: event.ticketUrl ?? "",
-        source: "ticketmaster",
-        sourceEventId: event.id,
+        city:
+          event.city ?? "",
+        state:
+          event.state ?? "",
+        category:
+          event.category,
+        subtitle:
+          event.subtitle ?? "",
+        image:
+          event.image ?? "",
+        ticketUrl:
+          event.ticketUrl ?? "",
+        source:
+          "ticketmaster",
+        sourceEventId:
+          event.id,
         trending: false,
       },
       item.currentPrice,
@@ -136,7 +176,9 @@ function WatchlistCard({ item }: { item: WatchItem }) {
     <article className="overflow-hidden rounded-3xl border border-border bg-card">
       <Link
         to="/event/$eventId"
-        params={{ eventId: event.id }}
+        params={{
+          eventId: event.id,
+        }}
         className="group block"
       >
         <div className="flex gap-4 p-4 sm:p-5">
@@ -169,13 +211,19 @@ function WatchlistCard({ item }: { item: WatchItem }) {
             <div className="mt-3 space-y-1 text-xs text-muted-foreground">
               <p className="flex items-center gap-1.5">
                 <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{event.date}</span>
+                <span className="truncate">
+                  {event.date}
+                </span>
               </p>
 
               <p className="flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">
-                  {[event.venue, event.city, event.state]
+                  {[
+                    event.venue,
+                    event.city,
+                    event.state,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
@@ -211,20 +259,29 @@ function WatchlistCard({ item }: { item: WatchItem }) {
                     <TrendingUp className="h-3.5 w-3.5" />
                   )}
 
-                  {money(Math.abs(priceDifference))}
+                  {money(
+                    Math.abs(
+                      priceDifference,
+                    ),
+                  )}
                 </span>
               )}
             </div>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              Saved at {savedPriceLabel}
+              Saved at{" "}
+              {savedPriceLabel}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => toggleNotify(item.eventId)}
+              onClick={() =>
+                void toggleNotify(
+                  item.eventId,
+                )
+              }
               className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${
                 item.notify
                   ? "border-primary/30 bg-primary/10 text-primary"
@@ -232,8 +289,8 @@ function WatchlistCard({ item }: { item: WatchItem }) {
               }`}
               aria-label={
                 item.notify
-                  ? "Turn off price notifications"
-                  : "Turn on price notifications"
+                  ? "Turn off price notifications for this event"
+                  : "Turn on price notifications for this event"
               }
             >
               {item.notify ? (
@@ -242,12 +299,16 @@ function WatchlistCard({ item }: { item: WatchItem }) {
                 <BellOff className="h-3.5 w-3.5" />
               )}
 
-              {item.notify ? "Alerts on" : "Alerts off"}
+              {item.notify
+                ? "Alerts on"
+                : "Alerts off"}
             </button>
 
             <button
               type="button"
-              onClick={handleRemove}
+              onClick={
+                handleRemove
+              }
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition hover:border-destructive/30 hover:text-destructive"
               aria-label={`Remove ${event.name} from watchlist`}
             >
@@ -259,9 +320,16 @@ function WatchlistCard({ item }: { item: WatchItem }) {
         {priceDropped && (
           <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs font-semibold text-primary">
             <TrendingDown className="h-4 w-4 shrink-0" />
+
             <span>
-              This ticket is {money(Math.abs(priceDifference))} cheaper
-              than when you saved it.
+              This ticket is{" "}
+              {money(
+                Math.abs(
+                  priceDifference,
+                ),
+              )}{" "}
+              cheaper than when you
+              saved it.
             </span>
           </div>
         )}
@@ -269,9 +337,16 @@ function WatchlistCard({ item }: { item: WatchItem }) {
         {priceIncreased && (
           <div className="mt-4 flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2.5 text-xs font-semibold text-muted-foreground">
             <TrendingUp className="h-4 w-4 shrink-0" />
+
             <span>
-              Price is {money(Math.abs(priceDifference))} higher than when
-              you saved it.
+              Price is{" "}
+              {money(
+                Math.abs(
+                  priceDifference,
+                ),
+              )}{" "}
+              higher than when you
+              saved it.
             </span>
           </div>
         )}
