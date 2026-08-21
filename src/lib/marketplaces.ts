@@ -1,277 +1,119 @@
 /**
- * Passr marketplace utilities.
+ * Passr marketplace registry.
+ *
+ * This file defines the marketplaces Passr understands.
  *
  * IMPORTANT:
- * A marketplace is only shown when Passr has a verified,
- * event-specific purchase URL.
+ * A marketplace being listed here does NOT mean Passr has live inventory
+ * from that marketplace.
  *
- * We NEVER manufacture marketplace search URLs.
+ * `searchUrl` is only used when Passr does not yet have a direct listing URL.
+ * Live marketplace inventory should eventually come from Passr's own
+ * marketplace data API.
  */
 
-export type MarketplaceName =
-  | "Ticketmaster"
-  | "TicketWeb"
-  | "Universe"
-  | "Front Gate Tickets"
-  | "SeatGeek"
-  | "StubHub"
-  | "Vivid Seats"
-  | "TickPick"
-  | "AXS"
-  | "Eventbrite"
-  | "DICE"
-  | "Partiful"
-  | "Posh"
-  | "Other";
+export type MarketplaceId =
+  | "ticketmaster"
+  | "seatgeek"
+  | "stubhub"
+  | "vividseats"
+  | "tickpick"
+  | "ticketweb"
+  | "axs"
+  | "eventbrite"
+  | "dice"
+  | "partiful"
+  | "posh";
 
-export type MarketplaceLink = {
-  name: MarketplaceName;
-  url: string;
-  verified: boolean;
+export type MarketplaceDefinition = {
+  id: MarketplaceId;
+  name: string;
+  website: string;
+
+  /**
+   * Used only as a fallback when Passr does not have a direct event URL.
+   */
+  buildSearchUrl?: (query: string) => string;
 };
 
-const MARKETPLACE_HOSTS: Array<{
-  name: MarketplaceName;
-  hosts: string[];
-}> = [
+export const MARKETPLACES: MarketplaceDefinition[] = [
   {
+    id: "ticketmaster",
     name: "Ticketmaster",
-    hosts: [
-      "ticketmaster.com",
-      "www.ticketmaster.com",
-      "ticketmaster.ca",
-      "www.ticketmaster.ca",
-    ],
+    website: "https://www.ticketmaster.com",
   },
   {
-    name: "TicketWeb",
-    hosts: [
-      "ticketweb.com",
-      "www.ticketweb.com",
-    ],
-  },
-  {
-    name: "Universe",
-    hosts: [
-      "universe.com",
-      "www.universe.com",
-    ],
-  },
-  {
-    name: "Front Gate Tickets",
-    hosts: [
-      "frontgatetickets.com",
-      "www.frontgatetickets.com",
-    ],
-  },
-  {
+    id: "seatgeek",
     name: "SeatGeek",
-    hosts: [
-      "seatgeek.com",
-      "www.seatgeek.com",
-    ],
+    website: "https://seatgeek.com",
+    buildSearchUrl: (query) =>
+      `https://seatgeek.com/search?search=${encodeURIComponent(query)}`,
   },
   {
+    id: "stubhub",
     name: "StubHub",
-    hosts: [
-      "stubhub.com",
-      "www.stubhub.com",
-    ],
+    website: "https://www.stubhub.com",
+    buildSearchUrl: (query) =>
+      `https://www.stubhub.com/search/?q=${encodeURIComponent(query)}`,
   },
   {
+    id: "vividseats",
     name: "Vivid Seats",
-    hosts: [
-      "vividseats.com",
-      "www.vividseats.com",
-    ],
+    website: "https://www.vividseats.com",
+    buildSearchUrl: (query) =>
+      `https://www.vividseats.com/search?search=${encodeURIComponent(query)}`,
   },
   {
+    id: "tickpick",
     name: "TickPick",
-    hosts: [
-      "tickpick.com",
-      "www.tickpick.com",
-    ],
+    website: "https://www.tickpick.com",
+    buildSearchUrl: (query) =>
+      `https://www.tickpick.com/search/?query=${encodeURIComponent(query)}`,
   },
   {
+    id: "ticketweb",
+    name: "TicketWeb",
+    website: "https://www.ticketweb.com",
+    buildSearchUrl: (query) =>
+      `https://www.ticketweb.com/search?q=${encodeURIComponent(query)}`,
+  },
+  {
+    id: "axs",
     name: "AXS",
-    hosts: [
-      "axs.com",
-      "www.axs.com",
-    ],
+    website: "https://www.axs.com",
+    buildSearchUrl: (query) =>
+      `https://www.axs.com/search?q=${encodeURIComponent(query)}`,
   },
   {
+    id: "eventbrite",
     name: "Eventbrite",
-    hosts: [
-      "eventbrite.com",
-      "www.eventbrite.com",
-    ],
+    website: "https://www.eventbrite.com",
+    buildSearchUrl: (query) =>
+      `https://www.eventbrite.com/d/online/${encodeURIComponent(query)}/`,
   },
   {
+    id: "dice",
     name: "DICE",
-    hosts: [
-      "dice.fm",
-      "www.dice.fm",
-    ],
+    website: "https://dice.fm",
+    buildSearchUrl: (query) =>
+      `https://dice.fm/search?q=${encodeURIComponent(query)}`,
   },
   {
+    id: "partiful",
     name: "Partiful",
-    hosts: [
-      "partiful.com",
-      "www.partiful.com",
-    ],
+    website: "https://partiful.com",
   },
   {
+    id: "posh",
     name: "Posh",
-    hosts: [
-      "posh.vip",
-      "www.posh.vip",
-    ],
+    website: "https://posh.vip",
   },
 ];
 
-function normalizeHost(hostname: string) {
-  return hostname
-    .toLowerCase()
-    .replace(/^www\./, "");
-}
-
-/**
- * Determines which marketplace owns a verified event URL.
- */
-export function identifyMarketplace(
-  url: string | undefined,
-): MarketplaceName | undefined {
-  if (!url) {
-    return undefined;
-  }
-
-  try {
-    const parsed = new URL(url);
-    const hostname = normalizeHost(
-      parsed.hostname,
-    );
-
-    const match = MARKETPLACE_HOSTS.find(
-      (marketplace) =>
-        marketplace.hosts.some(
-          (host) =>
-            normalizeHost(host) ===
-            hostname,
-        ),
-    );
-
-    return match?.name;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Only accepts real absolute HTTP(S) URLs.
- */
-export function isValidMarketplaceUrl(
-  url: string | undefined,
-): url is string {
-  if (!url) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(url);
-
-    return (
-      parsed.protocol === "https:" ||
-      parsed.protocol === "http:"
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Creates a verified marketplace link from an actual
- * event-specific purchase URL.
- *
- * Unknown domains are allowed and labeled "Other"
- * rather than being incorrectly attributed.
- */
-export function marketplaceLinkFromUrl(
-  url: string | undefined,
-): MarketplaceLink | undefined {
-  if (!isValidMarketplaceUrl(url)) {
-    return undefined;
-  }
-
-  const marketplace =
-    identifyMarketplace(url) ??
-    "Other";
-
-  return {
-    name: marketplace,
-    url,
-    verified: true,
-  };
-}
-
-/**
- * Removes duplicate URLs while preserving order.
- */
-export function deduplicateMarketplaceLinks(
-  links: MarketplaceLink[],
-): MarketplaceLink[] {
-  const seen = new Set<string>();
-
-  return links.filter((link) => {
-    const normalized =
-      link.url.trim();
-
-    if (!normalized) {
-      return false;
-    }
-
-    const key =
-      normalized.toLowerCase();
-
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-
-    return true;
-  });
-}
-export type EventMarketplace = {
-  id: string;
-  name: string;
-  url: string;
-  startingPrice?: number | undefined;
-};
-
-/**
- * Builds the list of verified, event-specific ticket sources.
- * Only real provider URLs are used — never generated search links.
- */
-export function marketplacesForEvent(event: {
-  ticketUrl?: string | undefined;
-  startingAt?: number | undefined;
-}): EventMarketplace[] {
-  const link = marketplaceLinkFromUrl(
-    event.ticketUrl,
+export function getMarketplace(
+  id: MarketplaceId,
+): MarketplaceDefinition | undefined {
+  return MARKETPLACES.find(
+    (marketplace) => marketplace.id === id,
   );
-
-  if (!link) {
-    return [];
-  }
-
-  return [
-    {
-      id: link.name
-        .toLowerCase()
-        .replace(/\s+/g, "-"),
-      name: link.name,
-      url: link.url,
-      startingPrice: event.startingAt,
-    },
-  ];
 }
