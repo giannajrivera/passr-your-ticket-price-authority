@@ -124,6 +124,9 @@ function WatchlistCard({ item }: { item: WatchItem }) {
         subtitle: event.subtitle ?? "",
         image: event.image ?? "",
         ticketUrl: event.ticketUrl ?? "",
+        source: "ticketmaster",
+        sourceEventId: event.id,
+        trending: false,
       },
       item.currentPrice,
     );
