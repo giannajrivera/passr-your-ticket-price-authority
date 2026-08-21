@@ -8,14 +8,27 @@
  * - Support keyword/category/genre/location searches
  * - Support geographic radius searches
  * - Normalize Ticketmaster data into PassrEvent[]
- * - Preserve useful genre/subgenre information for personalization
+ * - Preserve useful genre/subgenre information
  * - Remove obvious non-event listings
  * - Deduplicate duplicate Ticketmaster listings
  * - Never fabricate event data
+ * - Identify the actual ticket marketplace from the
+ *   provider's event-specific purchase URL
  */
 
-import { classifyListingType, deduplicateEvents } from "@/lib/event-utils";
-import type { EventCategory, PassrEvent } from "@/lib/types";
+import {
+  classifyListingType,
+  deduplicateEvents,
+} from "@/lib/event-utils";
+
+import {
+  marketplaceLinkFromUrl,
+} from "@/lib/marketplaces";
+
+import type {
+  EventCategory,
+  PassrEvent,
+} from "@/lib/types";
 
 const TICKETMASTER_EVENTS_ENDPOINT =
   "https://app.ticketmaster.com/discovery/v2/events.json";
@@ -27,55 +40,24 @@ export type TicketmasterSearchParams = {
   stateCode?: string | undefined;
   countryCode?: string | undefined;
 
-  /**
-   * Ticketmaster geographic search.
-   *
-   * Example:
-   * latitude=40.7128
-   * longitude=-74.006
-   * radius=50
-   * unit=miles
-   */
   latitude?: number | undefined;
   longitude?: number | undefined;
   radius?: number | undefined;
   unit?: "miles" | "km" | undefined;
 
-  /** ISO 8601 date/time values. */
   startDateTime?: string | undefined;
   endDateTime?: string | undefined;
 
   keyword?: string | undefined;
 
-  /**
-   * Ticketmaster segment:
-   * Music
-   * Sports
-   * Arts & Theatre
-   * Family
-   * Film
-   * Miscellaneous
-   */
   classificationName?: string | undefined;
 
-  /**
-   * Ticketmaster genre ID.
-   */
   genre?: string | undefined;
 
   page?: number | undefined;
 
-  /**
-   * Ticketmaster supports larger result pages than Passr's old defaults.
-   */
   size?: number | undefined;
 
-  /**
-   * Useful for discovery ranking.
-   *
-   * Ticketmaster supports values such as:
-   * relevance, date, distance, name
-   */
   sort?: string | undefined;
 };
 
@@ -96,8 +78,14 @@ export type TicketmasterError = {
 };
 
 export type TicketmasterResult =
-  | { ok: true; events: PassrEvent[] }
-  | { ok: false; error: TicketmasterError };
+  | {
+      ok: true;
+      events: PassrEvent[];
+    }
+  | {
+      ok: false;
+      error: TicketmasterError;
+    };
 
 type ClassificationInfo = {
   segment?: string | undefined;
@@ -106,30 +94,47 @@ type ClassificationInfo = {
   type?: string | undefined;
 };
 
-function normalizeText(value: string | undefined): string {
-  return value?.trim().toLowerCase() ?? "";
+function normalizeText(
+  value: string | undefined,
+): string {
+  return (
+    value?.trim().toLowerCase() ?? ""
+  );
 }
 
-/**
- * Converts Ticketmaster's classifications into Passr's broad categories.
- *
- * This intentionally checks genre/subgenre/type BEFORE segment because
- * Ticketmaster puts many useful categories underneath broad segments.
- */
-function mapCategory(info: ClassificationInfo): EventCategory {
-  const segment = normalizeText(info.segment);
-  const genre = normalizeText(info.genre);
-  const subGenre = normalizeText(info.subGenre);
-  const type = normalizeText(info.type);
+function mapCategory(
+  info: ClassificationInfo,
+): EventCategory {
+  const segment = normalizeText(
+    info.segment,
+  );
 
-  const values = new Set([segment, genre, subGenre, type]);
+  const genre = normalizeText(
+    info.genre,
+  );
 
-  const has = (...needles: string[]) =>
-    needles.some((needle) => values.has(needle));
+  const subGenre = normalizeText(
+    info.subGenre,
+  );
 
-  /*
-   * Festivals
-   */
+  const type = normalizeText(
+    info.type,
+  );
+
+  const values = new Set([
+    segment,
+    genre,
+    subGenre,
+    type,
+  ]);
+
+  const has = (
+    ...needles: string[]
+  ) =>
+    needles.some((needle) =>
+      values.has(needle),
+    );
+
   if (
     has(
       "festival",
@@ -141,9 +146,6 @@ function mapCategory(info: ClassificationInfo): EventCategory {
     return "Festival";
   }
 
-  /*
-   * Comedy
-   */
   if (
     has(
       "comedy",
@@ -156,11 +158,6 @@ function mapCategory(info: ClassificationInfo): EventCategory {
     return "Comedy";
   }
 
-  /*
-   * Nightlife / clubs / electronic events.
-   *
-   * These may appear under Miscellaneous rather than a dedicated segment.
-   */
   if (
     has(
       "nightlife",
@@ -174,9 +171,6 @@ function mapCategory(info: ClassificationInfo): EventCategory {
     return "Nightlife";
   }
 
-  /*
-   * Sports.
-   */
   if (
     segment === "sports" ||
     has(
@@ -202,9 +196,6 @@ function mapCategory(info: ClassificationInfo): EventCategory {
     return "Sports";
   }
 
-  /*
-   * Music.
-   */
   if (
     segment === "music" ||
     has(
@@ -237,9 +228,6 @@ function mapCategory(info: ClassificationInfo): EventCategory {
     return "Concert";
   }
 
-  /*
-   * Theatre / performing arts.
-   */
   if (
     segment === "arts & theatre" ||
     segment === "theatre" ||
@@ -259,9 +247,6 @@ function mapCategory(info: ClassificationInfo): EventCategory {
     return "Theater";
   }
 
-  /*
-   * Family events.
-   */
   if (
     segment === "family" ||
     has(
@@ -293,7 +278,10 @@ export async function fetchTicketmasterEvents(
     };
   }
 
-  const url = buildRequestUrl(params, apiKey);
+  const url = buildRequestUrl(
+    params,
+    apiKey,
+  );
 
   let response: Response;
 
@@ -308,7 +296,8 @@ export async function fetchTicketmasterEvents(
       ok: false,
       error: {
         kind: "network_error",
-        message: "Could not reach Ticketmaster.",
+        message:
+          "Could not reach Ticketmaster.",
       },
     };
   }
@@ -316,7 +305,9 @@ export async function fetchTicketmasterEvents(
   if (!response.ok) {
     return {
       ok: false,
-      error: mapHttpError(response.status),
+      error: mapHttpError(
+        response.status,
+      ),
     };
   }
 
@@ -335,7 +326,8 @@ export async function fetchTicketmasterEvents(
     };
   }
 
-  const rawEvents = extractRawEvents(payload);
+  const rawEvents =
+    extractRawEvents(payload);
 
   if (rawEvents === undefined) {
     return {
@@ -351,7 +343,8 @@ export async function fetchTicketmasterEvents(
   const events: PassrEvent[] = [];
 
   for (const raw of rawEvents) {
-    const normalized = normalizeEvent(raw);
+    const normalized =
+      normalizeEvent(raw);
 
     if (!normalized) {
       continue;
@@ -362,7 +355,9 @@ export async function fetchTicketmasterEvents(
 
   return {
     ok: true,
-    events: deduplicateEvents(events),
+    events: deduplicateEvents(
+      events,
+    ),
   };
 }
 
@@ -370,31 +365,43 @@ function buildRequestUrl(
   params: TicketmasterSearchParams,
   apiKey: string,
 ): string {
-  const url = new URL(TICKETMASTER_EVENTS_ENDPOINT);
+  const url = new URL(
+    TICKETMASTER_EVENTS_ENDPOINT,
+  );
 
-  url.searchParams.set("apikey", apiKey);
+  url.searchParams.set(
+    "apikey",
+    apiKey,
+  );
 
   if (params.id) {
-    url.searchParams.set("id", params.id);
+    url.searchParams.set(
+      "id",
+      params.id,
+    );
   }
 
   if (params.city) {
-    url.searchParams.set("city", params.city);
+    url.searchParams.set(
+      "city",
+      params.city,
+    );
   }
 
   if (params.stateCode) {
-    url.searchParams.set("stateCode", params.stateCode);
+    url.searchParams.set(
+      "stateCode",
+      params.stateCode,
+    );
   }
 
   if (params.countryCode) {
-    url.searchParams.set("countryCode", params.countryCode);
+    url.searchParams.set(
+      "countryCode",
+      params.countryCode,
+    );
   }
 
-  /*
-   * Geographic search.
-   *
-   * Ticketmaster expects latitude/longitude together.
-   */
   if (
     params.latitude !== undefined &&
     params.longitude !== undefined
@@ -404,7 +411,9 @@ function buildRequestUrl(
       `${params.latitude},${params.longitude}`,
     );
 
-    if (params.radius !== undefined) {
+    if (
+      params.radius !== undefined
+    ) {
       url.searchParams.set(
         "radius",
         String(params.radius),
@@ -445,10 +454,6 @@ function buildRequestUrl(
     );
   }
 
-  /*
-   * `genre` is Passr's parameter name.
-   * Ticketmaster receives it as `genreId`.
-   */
   if (params.genre) {
     url.searchParams.set(
       "genreId",
@@ -459,28 +464,34 @@ function buildRequestUrl(
   if (params.page !== undefined) {
     url.searchParams.set(
       "page",
-      String(Math.max(0, params.page)),
+      String(
+        Math.max(
+          0,
+          params.page,
+        ),
+      ),
     );
   }
 
-  /*
-   * Pull a healthy amount of data for discovery.
-   *
-   * We cap this so callers cannot accidentally request unreasonable
-   * page sizes.
-   */
   if (params.size !== undefined) {
-    const safeSize = Math.min(
-      Math.max(1, params.size),
-      200,
-    );
+    const safeSize =
+      Math.min(
+        Math.max(
+          1,
+          params.size,
+        ),
+        200,
+      );
 
     url.searchParams.set(
       "size",
       String(safeSize),
     );
   } else {
-    url.searchParams.set("size", "100");
+    url.searchParams.set(
+      "size",
+      "100",
+    );
   }
 
   if (params.sort) {
@@ -493,7 +504,9 @@ function buildRequestUrl(
   return url.toString();
 }
 
-function mapHttpError(status: number): TicketmasterError {
+function mapHttpError(
+  status: number,
+): TicketmasterError {
   if (status === 401) {
     return {
       kind: "unauthorized",
@@ -540,7 +553,10 @@ function mapHttpError(status: number): TicketmasterError {
 
 function isRecord(
   value: unknown,
-): value is Record<string, unknown> {
+): value is Record<
+  string,
+  unknown
+> {
   return (
     typeof value === "object" &&
     value !== null
@@ -550,8 +566,10 @@ function isRecord(
 function str(
   value: unknown,
 ): string | undefined {
-  return typeof value === "string" &&
+  return (
+    typeof value === "string" &&
     value.trim().length > 0
+  )
     ? value.trim()
     : undefined;
 }
@@ -570,7 +588,9 @@ function num(
     typeof value === "string" &&
     value.trim() !== ""
   ) {
-    const parsed = Number(value);
+    const parsed = Number(
+      value,
+    );
 
     if (Number.isFinite(parsed)) {
       return parsed;
@@ -587,20 +607,25 @@ function extractRawEvents(
     return undefined;
   }
 
-  /*
-   * Ticketmaster omits `_embedded` when there are zero results.
-   * That is a valid empty search.
-   */
-  if (payload["_embedded"] === undefined) {
+  if (
+    payload["_embedded"] ===
+    undefined
+  ) {
     return [];
   }
 
-  if (!isRecord(payload["_embedded"])) {
+  if (
+    !isRecord(
+      payload["_embedded"],
+    )
+  ) {
     return undefined;
   }
 
   const events =
-    payload["_embedded"]["events"];
+    payload["_embedded"][
+      "events"
+    ];
 
   if (events === undefined) {
     return [];
@@ -612,12 +637,20 @@ function extractRawEvents(
 }
 
 function pickPrimaryClassification(
-  classifications: Record<string, unknown>[],
-): Record<string, unknown> | undefined {
+  classifications: Record<
+    string,
+    unknown
+  >[],
+): Record<
+  string,
+  unknown
+> | undefined {
   return (
     classifications.find(
       (classification) =>
-        classification["primary"] === true,
+        classification[
+          "primary"
+        ] === true,
     ) ??
     classifications[0]
   );
@@ -638,14 +671,17 @@ function pickBestImage(
       continue;
     }
 
-    const url = str(image["url"]);
+    const url = str(
+      image["url"],
+    );
 
     if (!url) {
       continue;
     }
 
     const width =
-      num(image["width"]) ?? 0;
+      num(image["width"]) ??
+      0;
 
     if (
       !best ||
@@ -668,12 +704,16 @@ function pickStartingPrice(
     | number
     | undefined;
 
-  for (const range of priceRanges) {
+  for (
+    const range of priceRanges
+  ) {
     if (!isRecord(range)) {
       continue;
     }
 
-    const min = num(range["min"]);
+    const min = num(
+      range["min"],
+    );
 
     if (min === undefined) {
       continue;
@@ -691,8 +731,12 @@ function pickStartingPrice(
 }
 
 function formatDisplayDate(
-  localDate: string | undefined,
-  localTime: string | undefined,
+  localDate:
+    | string
+    | undefined,
+  localTime:
+    | string
+    | undefined,
 ): string | undefined {
   if (!localDate) {
     return undefined;
@@ -704,7 +748,11 @@ function formatDisplayDate(
       : `${localDate}T00:00:00`,
   );
 
-  if (Number.isNaN(parsed.getTime())) {
+  if (
+    Number.isNaN(
+      parsed.getTime(),
+    )
+  ) {
     return localDate;
   }
 
@@ -734,15 +782,6 @@ function formatDisplayDate(
   return `${datePart} · ${timePart}`;
 }
 
-/**
- * Filters obvious non-event listings.
- *
- * Ticketmaster can sometimes return parking, VIP, merchandise,
- * transportation, or other ancillary listings alongside actual events.
- *
- * We do NOT aggressively filter legitimate events because Passr is intended
- * to support a very broad event ecosystem.
- */
 function isLikelyAncillaryListing(
   name: string,
 ): boolean {
@@ -771,17 +810,23 @@ function normalizeEvent(
     return undefined;
   }
 
-  const id = str(raw["id"]);
-  const name = str(raw["name"]);
+  const id = str(
+    raw["id"],
+  );
+
+  const name = str(
+    raw["name"],
+  );
 
   if (!id || !name) {
     return undefined;
   }
 
-  /*
-   * Do not let obvious ancillary inventory pollute Passr's discovery feed.
-   */
-  if (isLikelyAncillaryListing(name)) {
+  if (
+    isLikelyAncillaryListing(
+      name,
+    )
+  ) {
     return undefined;
   }
 
@@ -789,7 +834,9 @@ function normalizeEvent(
     Array.isArray(
       raw["classifications"],
     )
-      ? raw["classifications"]
+      ? raw[
+          "classifications"
+        ]
       : [];
 
   const classifications =
@@ -805,42 +852,65 @@ function normalizeEvent(
   const segmentName =
     classification &&
     isRecord(
-      classification["segment"],
+      classification[
+        "segment"
+      ],
     )
       ? str(
-          classification[
-            "segment"
-          ]["name"],
+          (
+            classification[
+              "segment"
+            ] as Record<
+              string,
+              unknown
+            >
+          )["name"],
         )
       : undefined;
 
   const genre =
     classification &&
     isRecord(
-      classification["genre"],
+      classification[
+        "genre"
+      ],
     )
       ? str(
-          classification[
-            "genre"
-          ]["name"],
+          (
+            classification[
+              "genre"
+            ] as Record<
+              string,
+              unknown
+            >
+          )["name"],
         )
       : undefined;
 
   const subGenre =
     classification &&
     isRecord(
-      classification["subGenre"],
+      classification[
+        "subGenre"
+      ],
     )
       ? str(
-          classification[
-            "subGenre"
-          ]["name"],
+          (
+            classification[
+              "subGenre"
+            ] as Record<
+              string,
+              unknown
+            >
+          )["name"],
         )
       : undefined;
 
   const classificationType =
     classification
-      ? classification["type"]
+      ? classification[
+          "type"
+        ]
       : undefined;
 
   const typeName =
@@ -863,7 +933,9 @@ function normalizeEvent(
     });
 
   const embedded =
-    isRecord(raw["_embedded"])
+    isRecord(
+      raw["_embedded"],
+    )
       ? raw["_embedded"]
       : undefined;
 
@@ -897,7 +969,9 @@ function normalizeEvent(
 
   const venueName =
     venue
-      ? str(venue["name"])
+      ? str(
+          venue["name"],
+        )
       : undefined;
 
   const venueCity =
@@ -906,9 +980,14 @@ function normalizeEvent(
       venue["city"],
     )
       ? str(
-          venue[
-            "city"
-          ]["name"],
+          (
+            venue[
+              "city"
+            ] as Record<
+              string,
+              unknown
+            >
+          )["name"],
         )
       : undefined;
 
@@ -917,17 +996,27 @@ function normalizeEvent(
     isRecord(
       venue["state"],
     )
-      ? (
-          str(
+      ? str(
+          (
             venue[
               "state"
-            ]["stateCode"],
-          ) ??
-          str(
+            ] as Record<
+              string,
+              unknown
+            >
+          )[
+            "stateCode"
+          ],
+        ) ??
+        str(
+          (
             venue[
               "state"
-            ]["name"],
-          )
+            ] as Record<
+              string,
+              unknown
+            >
+          )["name"],
         )
       : undefined;
 
@@ -936,17 +1025,27 @@ function normalizeEvent(
     isRecord(
       venue["country"],
     )
-      ? (
-          str(
+      ? str(
+          (
             venue[
               "country"
-            ]["countryCode"],
-          ) ??
-          str(
+            ] as Record<
+              string,
+              unknown
+            >
+          )[
+            "countryCode"
+          ],
+        ) ??
+        str(
+          (
             venue[
               "country"
-            ]["name"],
-          )
+            ] as Record<
+              string,
+              unknown
+            >
+          )["name"],
         )
       : undefined;
 
@@ -955,24 +1054,32 @@ function normalizeEvent(
     isRecord(
       venue["location"],
     )
-      ? venue["location"]
+      ? venue[
+          "location"
+        ]
       : undefined;
 
   const latitude =
     location
       ? num(
-          location[
-            "latitude"
-          ],
+          (
+            location as Record<
+              string,
+              unknown
+            >
+          )["latitude"],
         )
       : undefined;
 
   const longitude =
     location
       ? num(
-          location[
-            "longitude"
-          ],
+          (
+            location as Record<
+              string,
+              unknown
+            >
+          )["longitude"],
         )
       : undefined;
 
@@ -994,7 +1101,12 @@ function normalizeEvent(
   const startDateTime =
     start
       ? str(
-          start[
+          (
+            start as Record<
+              string,
+              unknown
+            >
+          )[
             "dateTime"
           ],
         )
@@ -1003,7 +1115,12 @@ function normalizeEvent(
   const localDate =
     start
       ? str(
-          start[
+          (
+            start as Record<
+              string,
+              unknown
+            >
+          )[
             "localDate"
           ],
         )
@@ -1012,7 +1129,12 @@ function normalizeEvent(
   const localTime =
     start
       ? str(
-          start[
+          (
+            start as Record<
+              string,
+              unknown
+            >
+          )[
             "localTime"
           ],
         )
@@ -1058,12 +1180,31 @@ function normalizeEvent(
       raw["pleaseNote"],
     );
 
+  /**
+   * IMPORTANT:
+   * This is the actual event URL returned
+   * by Ticketmaster.
+   *
+   * It may point to Ticketmaster,
+   * TicketWeb, Universe, etc.
+   */
   const ticketUrl =
     str(raw["url"]);
 
+  /**
+   * Determine the actual marketplace from
+   * that event-specific URL.
+   */
+  const marketplace =
+    marketplaceLinkFromUrl(
+      ticketUrl,
+    );
+
   const event: PassrEvent = {
     id: `ticketmaster-${id}`,
+
     source: "ticketmaster",
+
     sourceEventId: id,
 
     name,
@@ -1081,14 +1222,12 @@ function normalizeEvent(
 
     category,
 
-    /*
-     * Preserve these separately because personalization can later use
-     * exact genre/subgenre preferences rather than only broad categories.
-     */
     genre,
+
     subGenre,
 
     date,
+
     startDateTime,
 
     venue:
@@ -1105,19 +1244,30 @@ function normalizeEvent(
       venueCountry,
 
     latitude,
+
     longitude,
 
     image,
 
-    /*
-     * This is the actual lowest Ticketmaster price range available in the
-     * provider response. We never manufacture a group-of-four price.
-     */
     startingAt,
 
     trending: false,
 
+    /**
+     * Actual provider event URL.
+     */
     ticketUrl,
+
+    /**
+     * Actual marketplace owning that URL.
+     *
+     * Example:
+     * ticketweb.com/... → TicketWeb
+     * ticketmaster.com/... → Ticketmaster
+     * universe.com/... → Universe
+     */
+    ticketMarketplace:
+      marketplace?.name,
 
     listingType:
       classifyListingType(name),
