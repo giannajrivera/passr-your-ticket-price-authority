@@ -1,8 +1,9 @@
 /**
- * Shared, provider-agnostic event and ticket types for Passr.
+ * Shared provider-agnostic types for Passr.
  *
- * PassrEvent contains the core identity of an event.
- * Ticket-market data is intentionally kept separate.
+ * Event identity and marketplace/ticket data are intentionally separated.
+ * A provider can tell Passr that an event exists without providing
+ * marketplace-level ticket inventory.
  */
 
 export type EventSource =
@@ -29,35 +30,26 @@ export type ListingType =
   | "other";
 
 export type PassrEvent = {
-  /** Passr's internal identifier for this event. */
   id: string;
 
-  /** Provider that supplied the event. */
   source: EventSource;
 
-  /** Event ID in the provider's system. */
   sourceEventId: string;
 
   name: string;
 
-  /** Short line under the event name. */
   subtitle?: string | undefined;
 
-  /** Longer provider-supplied description. */
   description?: string | undefined;
 
   category: EventCategory;
 
-  /** Provider-supplied genre. */
   genre?: string | undefined;
 
-  /** Provider-supplied sub-genre. */
   subGenre?: string | undefined;
 
-  /** Human-readable display date/time. */
   date: string;
 
-  /** ISO 8601 start date/time. */
   startDateTime?: string | undefined;
 
   venue: string;
@@ -72,59 +64,116 @@ export type PassrEvent = {
 
   longitude?: number | undefined;
 
-  /** Hero/listing image URL. */
   image: string;
 
   /**
-   * Lowest known starting price.
+   * Lowest known provider price.
    *
-   * Never fabricate this value when the provider
-   * does not supply pricing.
+   * This is NOT a marketplace quote.
    */
   startingAt?: number | undefined;
 
-  /** Whether this event should surface as trending. */
   trending: boolean;
 
   /**
-   * Actual event-specific purchase URL supplied
-   * by the provider.
+   * Provider's direct event/ticket URL.
    *
-   * This must NOT be a generic marketplace search URL.
+   * This should only be displayed when it is actually a usable
+   * destination for the event.
    */
   ticketUrl?: string | undefined;
 
-  /**
-   * Marketplace that owns ticketUrl.
-   *
-   * Examples:
-   * Ticketmaster
-   * TicketWeb
-   * Universe
-   * Eventbrite
-   * Partiful
-   *
-   * This is derived from the actual ticket URL.
-   */
-  ticketMarketplace?: string | undefined;
-
-  /**
-   * Best-effort classification of standard vs.
-   * non-standard listings.
-   */
   listingType?: ListingType | undefined;
 };
 
 /**
- * Ticket / resale-market data for a specific
- * listing, section, or seat.
+ * Marketplace identity.
+ */
+export type MarketplaceId =
+  | "ticketmaster"
+  | "seatgeek"
+  | "stubhub"
+  | "vividseats"
+  | "tickpick"
+  | "ticketweb"
+  | "axs"
+  | "eventbrite"
+  | "dice"
+  | "partiful"
+  | "posh";
+
+/**
+ * A direct marketplace listing for this specific event.
  *
- * This is separate from PassrEvent because
- * provider event APIs generally do not provide
- * historical market averages or resale quotes.
+ * This is intentionally different from a generic marketplace search URL.
+ *
+ * `purchaseUrl` should point to the actual event/listing page.
+ */
+export type MarketplaceListing = {
+  marketplace: MarketplaceId;
+
+  /**
+   * Human-readable marketplace name.
+   */
+  marketplaceName: string;
+
+  /**
+   * Direct event/listing URL.
+   *
+   * This should only exist when Passr knows that the marketplace
+   * actually has this event.
+   */
+  purchaseUrl: string;
+
+  /**
+   * Whether this listing is currently believed to have inventory.
+   *
+   * This can eventually become a real-time inventory state.
+   */
+  availability:
+    | "available"
+    | "limited"
+    | "sold_out"
+    | "unknown";
+
+  /**
+   * Lowest known ticket price from this marketplace.
+   */
+  startingPrice?: number | undefined;
+
+  /**
+   * When this marketplace information was last checked.
+   */
+  lastUpdated?: string | undefined;
+};
+
+/**
+ * Marketplace comparison data attached to an event.
+ *
+ * This is Passr's normalized marketplace layer.
+ */
+export type EventMarketplaceData = {
+  eventId: string;
+
+  listings: MarketplaceListing[];
+
+  /**
+   * True when the data came from a live/verified marketplace source.
+   */
+  live: boolean;
+
+  /**
+   * Timestamp for the marketplace dataset itself.
+   */
+  lastUpdated?: string | undefined;
+};
+
+/**
+ * Normalized ticket quote.
+ *
+ * Used by the pricing/comparison UI.
  */
 export type TicketMarketData = {
-  /** Marketplace supplying this quote. */
   marketplace: string;
 
   section?: string | undefined;
@@ -137,12 +186,9 @@ export type TicketMarketData = {
 
   totalPrice: number;
 
-  /** Recent market average when known. */
   marketAverage?: number | undefined;
 
-  /** Event/listing-specific purchase URL. */
   purchaseUrl?: string | undefined;
 
-  /** ISO 8601 timestamp. */
   lastUpdated?: string | undefined;
 };
